@@ -1,16 +1,12 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
+import Home from '../../components/ui/Home'
 
 function AppRoutes() {
     return (
         <Routes>
             <Route
                 path="/"
-                element={
-                    <Navigate
-                        to="/login"
-                        replace
-                    />
-                }
+                element={<Home />}
             />
 
             <Route

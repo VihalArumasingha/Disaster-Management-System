@@ -10,6 +10,7 @@ import citizenRoutes from './roles/citizen/routes/citizenRoutes.js'
 import dmcOfficerRoutes from './roles/dmcOfficer/routes/dmcOfficerRoutes.js'
 import dutyOfficerRoutes from './roles/dutyOfficer/routes/dutyOfficerRoutes.js'
 import ngoManagerRoutes from './roles/ngoManager/routes/ngoManagerRoutes.js'
+import weatherRoutes from './roles/weather/routes/weatherRoutes.js'
 
 import errorMiddleware from './middleware/errorHandling/errorMiddleware.js'
 
@@ -43,6 +44,7 @@ app.use('/api/citizen', citizenRoutes)
 app.use('/api/dmc-officer', dmcOfficerRoutes)
 app.use('/api/duty-officer', dutyOfficerRoutes)
 app.use('/api/ngo-manager', ngoManagerRoutes)
+app.use('/api/weather', weatherRoutes)
 
 app.use(errorMiddleware)
 
