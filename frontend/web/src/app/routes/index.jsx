@@ -1,8 +1,24 @@
-import { Routes, Route } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import Home from '../../components/ui/Home'
 import AuthPage from '../../auth/components/AuthPage'
 import RoleDashboard, { StaffDashboard } from '../../auth/components/RoleDashboard'
 import { USER_ROLES } from '../../constants/roles'
+import DmcOfficerLayout from '../../layouts/dmcOfficer/DmcOfficerLayout'
+
+const DmcDashboardPage = lazy(() => import('../../roles/dmcOfficer/pages/DmcDashboardPage'))
+const EscalatedReportsPage = lazy(() => import('../../roles/dmcOfficer/pages/EscalatedReportsPage'))
+const WarningsPage = lazy(() => import('../../roles/dmcOfficer/pages/WarningsPage'))
+const CreateWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateWarningPage'))
+const TargetAreasPage = lazy(() => import('../../roles/dmcOfficer/pages/TargetAreasPage'))
+const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateTargetAreaPage'))
+const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
+
+const withLoading = (page) => (
+    <Suspense fallback={<div className="px-5 py-20 text-center text-slate-600">Loading page…</div>}>
+        {page}
+    </Suspense>
+)
 
 function AppRoutes() {
     return (
@@ -15,7 +31,16 @@ function AppRoutes() {
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />
             <Route path="/dashboard" element={<StaffDashboard />} />
-            <Route path="/dmcofficer/dashboard" element={<RoleDashboard role={USER_ROLES.dmcofficer} />} />
+            <Route path="/dmcofficer" element={<DmcOfficerLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={withLoading(<DmcDashboardPage />)} />
+                <Route path="escalated-reports" element={withLoading(<EscalatedReportsPage />)} />
+                <Route path="warnings" element={withLoading(<WarningsPage />)} />
+                <Route path="warnings/create" element={withLoading(<CreateWarningPage />)} />
+                <Route path="target-areas" element={withLoading(<TargetAreasPage />)} />
+                <Route path="target-areas/create" element={withLoading(<CreateTargetAreaPage />)} />
+                <Route path="profile" element={withLoading(<DmcProfilePage />)} />
+            </Route>
             <Route path="/dutyofficer/dashboard" element={<RoleDashboard role={USER_ROLES.dutyofficer} />} />
             <Route path="/ngomanager/dashboard" element={<RoleDashboard role={USER_ROLES.ngomanager} />} />
 

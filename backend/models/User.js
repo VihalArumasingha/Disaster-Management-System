@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { normalizeRole, USER_ROLES } from '../utils/constants.js'
+import { USER_ROLES } from '../utils/constants.js'
 
 const userSchema = new mongoose.Schema(
     {
@@ -22,18 +22,42 @@ const userSchema = new mongoose.Schema(
             required: true
         },
 
+        phone: {
+            type: String,
+            required: true,
+            trim: true
+        },
+
+        location: {
+            type: {
+                type: String,
+                enum: ['Point']
+            },
+            coordinates: {
+                type: [Number],
+                validate: {
+                    validator: (coordinates) => (
+                        coordinates.length === 2
+                        && coordinates.every(Number.isFinite)
+                    ),
+                    message: 'Location must contain longitude and latitude'
+                }
+            }
+        },
+
         role: {
             type: String,
             enum: Object.values(USER_ROLES),
             default: USER_ROLES.citizen,
-            required: true,
-            set: normalizeRole
+            required: true
         }
     },
     {
         timestamps: true
     }
 )
+
+userSchema.index({ location: '2dsphere' }, { sparse: true })
 
 const User = mongoose.model('User', userSchema)
 

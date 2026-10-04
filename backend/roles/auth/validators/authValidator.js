@@ -21,11 +21,45 @@ const validateAuthInput = (req, res, next) => {
     }
 
     if (isRegister) {
-        const { name } = req.body
+        const { name, phone, location } = req.body
+        const phoneDigits = typeof phone === 'string'
+            ? phone.replace(/\D/g, '').length
+            : 0
+
         if (typeof name !== 'string' || !name.trim()) {
             return res.status(400).json({
                 success: false,
                 message: 'Name is required'
+            })
+        }
+
+        if (
+            typeof phone !== 'string'
+            || !/^\+?[0-9\s().-]+$/.test(phone.trim())
+            || phoneDigits < 7
+            || phoneDigits > 15
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Enter a valid phone number with 7 to 15 digits'
+            })
+        }
+
+        if (
+            location !== undefined
+            && (
+                !location
+                || !Number.isFinite(location.latitude)
+                || location.latitude < -90
+                || location.latitude > 90
+                || !Number.isFinite(location.longitude)
+                || location.longitude < -180
+                || location.longitude > 180
+            )
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Location must contain valid latitude and longitude coordinates'
             })
         }
     }
