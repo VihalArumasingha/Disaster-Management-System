@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Bell, Plus, Users } from 'lucide-react'
+import { Bell, BellRing, Plus, Users } from 'lucide-react'
 import api from '../../../services/api'
 
 const severityStyles = {
@@ -54,10 +54,22 @@ function WarningsPage() {
                 </Link>
             </div>
 
-            {location.state?.created && (
+            {(location.state?.created || location.state?.updated) && (
                 <p role="status" className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-                    Warning created as a draft. No notification has been sent.
+                    {location.state.created ? 'Warning created as a draft.' : 'Draft changes saved.'} No notification has been sent.
                 </p>
+            )}
+            {location.state?.issued && (
+                <div role="status" className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+                    <p className="font-semibold">Warning issuance completed.</p>
+                    {location.state.deliverySummary && (
+                        <p className="mt-1">
+                            In-app: {location.state.deliverySummary.inAppSent}/{location.state.deliverySummary.recipients} ·
+                            SMS: {location.state.deliverySummary.smsSent} queued, {location.state.deliverySummary.smsFailed} failed ·
+                            Email fallback: {location.state.deliverySummary.emailFallbackSent} sent, {location.state.deliverySummary.emailFallbackFailed} failed.
+                        </p>
+                    )}
+                </div>
             )}
             {error && <p role="alert" className="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
             {loading ? (
@@ -87,13 +99,52 @@ function WarningsPage() {
                                 <span>Areas: {warning.targetAreaIds.map((area) => area.name).join(', ') || '—'}</span>
                                 <span>{new Date(warning.createdAt).toLocaleString()}</span>
                             </div>
+                            {warning.deliverySummary && (
+                                <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                                    <p>
+                                        In-app {warning.deliverySummary.inAppSent}/{warning.deliverySummary.recipients} ·
+                                        SMS {warning.deliverySummary.smsSent} queued / {warning.deliverySummary.smsFailed} failed ·
+                                        Email fallback {warning.deliverySummary.emailFallbackSent} sent / {warning.deliverySummary.emailFallbackFailed} failed
+                                    </p>
+                                    {warning.deliverySummary.failureDetails?.length > 0 && (
+                                        <ul className="mt-2 space-y-1 text-red-700">
+                                            {warning.deliverySummary.failureDetails.map(({ channel, count, reason }) => (
+                                                <li key={`${channel}-${reason}`}>{channel}: {count} failure(s) — {reason}</li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {warning.status === 'draft' && (
+                                    <>
+                                        <Link
+                                            to={`/dmcofficer/warnings/${warning._id}/edit`}
+                                            className="inline-flex min-h-10 items-center rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        >
+                                            Edit Draft
+                                        </Link>
+                                        <Link
+                                            to={`/dmcofficer/warnings/${warning._id}/review`}
+                                            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-blue-700 px-3 text-sm font-semibold text-white hover:bg-blue-800"
+                                        >
+                                            <BellRing size={15} /> Issue Warning
+                                        </Link>
+                                    </>
+                                )}
+                                {['partially_issued', 'delivery_failed'].includes(warning.status) && (
+                                    <Link
+                                        to={`/dmcofficer/warnings/${warning._id}/review`}
+                                        className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-amber-700 px-3 text-sm font-semibold text-white hover:bg-amber-800"
+                                    >
+                                        <BellRing size={15} /> Retry Failed Deliveries
+                                    </Link>
+                                )}
+                            </div>
                         </article>
                     ))}
                 </section>
             )}
-            <p className="mt-7 text-xs leading-5 text-slate-500">
-                Warnings are saved as drafts for now. SMS/push delivery is not configured and no notifications are sent from this page.
-            </p>
         </main>
     )
 }

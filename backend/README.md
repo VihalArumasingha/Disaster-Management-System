@@ -49,8 +49,28 @@ Role-specific API routers also require a valid session and matching role.
 DMC officer routes use `/api/dmcofficer` and require the `dmcofficer` role.
 Target-area polygons are GeoJSON and use MongoDB geospatial queries. Matched
 citizen IDs are stored on each target area; only current `citizen` accounts
-are counted or selected for warning drafts. Warning creation saves a draft
-and a recipient snapshot; it does not send SMS or push notifications.
+are counted or selected for warnings. A warning is saved as a draft, can be
+edited, and requires a separate read-only review and explicit issue confirmation.
+The audience is refreshed from the selected polygons at issue time.
+
+On issue, the API saves one in-app alert and attempts an SMS for each eligible
+citizen. If either primary channel fails, it attempts email as a fallback.
+Configure these backend environment variables:
+
+- `TEXTBEE_API_KEY` for TextBee SMS. The API uses the `x-api-key` header with
+  `POST https://api.textbee.dev/api/v1/gateway/send-sms`; `TEXTBEE_BASE_URL`
+  can override the API base URL for a self-hosted deployment. TextBee requires
+  phone numbers in E.164 format and an enabled, paired Android sending device.
+- `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` for Brevo email fallback.
+  `BREVO_SENDER_NAME` is optional.
+
+Per-recipient channel outcomes and provider errors are retained with the
+warning. A successful TextBee HTTP response means the message was accepted into
+its queue; it does not confirm carrier delivery. Partial or failed issuances can
+be retried from the warnings page; successful channels are not sent again.
+Citizen in-app alerts are available
+from the authenticated `GET /api/citizen/notifications` endpoint and can be
+marked read with `PATCH /api/citizen/notifications/:notificationId/read`.
 
 The map uses OpenStreetMap tiles as its base layer and optional OpenWeather
 precipitation, clouds, or temperature overlays. Configure `OPENWEATHER_KEY`

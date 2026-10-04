@@ -2,7 +2,9 @@ import mongoose from 'mongoose'
 import User from '../../../models/User.js'
 import TargetArea from '../../../models/TargetArea.js'
 import Warning from '../../../models/Warning.js'
+import WarningDelivery from '../../../models/WarningDelivery.js'
 import { CITIZEN_ROLE_VALUES } from '../../../utils/citizenTargetAreas.js'
+import { deliverWarningToCitizen } from './warningDeliveryService.js'
 
 const ALLOWED_AREA_TYPES = new Set([
     'river-flood',
@@ -225,15 +227,7 @@ export const listTargetAreas = async () => {
     return Promise.all(areas.map(shapeTargetArea))
 }
 
-const shapeWarning = async (warning) => {
-    const { recipientIds, ...publicWarning } = warning.toObject()
-    return {
-        ...publicWarning,
-        recipientCount: (await getCurrentCitizenIds(recipientIds)).length
-    }
-}
-
-export const createWarning = async (data, officerId) => {
+const validateWarningData = async (data) => {
     const { title, severity, hazardType, message, targetAreaIds } = data
 
     if (
@@ -269,51 +263,242 @@ export const createWarning = async (data, officerId) => {
         throw error
     }
 
-    const areas = await TargetArea.find({ _id: { $in: targetAreaIds } })
-        .select('citizenIds')
+    const uniqueAreaIds = [...new Set(targetAreaIds.map(String))]
+    const areas = await TargetArea.find({ _id: { $in: uniqueAreaIds } })
+        .select('citizenIds geometry')
     if (areas.length !== new Set(targetAreaIds.map(String)).size) {
         const error = new Error('One or more selected target areas do not exist')
         error.statusCode = 404
         throw error
     }
 
-    const memberIds = [...new Set(areas.flatMap((area) => area.citizenIds.map(String)))]
-    const recipientIds = await getCurrentCitizenIds(memberIds)
-    const warning = await Warning.create({
+    const areaById = new Map(areas.map((area) => [String(area._id), area]))
+    return {
         title: title.trim(),
         severity,
         hazardType,
         message: message.trim(),
-        targetAreaIds: areas.map((area) => area._id),
-        recipientIds,
+        targetAreaIds: uniqueAreaIds.map((id) => areaById.get(id)._id),
+        areas
+    }
+}
+
+const getCurrentRecipientsForAreas = async (areas) => {
+    const memberIds = [...new Set(areas.flatMap((area) => (
+        Array.isArray(area.citizenIds) ? area.citizenIds.map(String) : []
+    )))]
+    const alternatives = []
+    if (memberIds.length > 0) alternatives.push({ _id: { $in: memberIds } })
+    alternatives.push(...areas.map((area) => ({
+        location: { $geoWithin: { $geometry: area.geometry } }
+    })))
+
+    if (alternatives.length === 0) return []
+    return User.find({
+        role: { $in: CITIZEN_ROLE_VALUES },
+        $or: alternatives
+    }).select('_id name email phone')
+}
+
+const uniqueIds = (targetAreaIds = []) => [
+    ...new Set(targetAreaIds.map((area) => String(area?._id || area)))
+]
+
+const warningAreas = async (targetAreaIds = []) => TargetArea.find({
+    _id: { $in: uniqueIds(targetAreaIds) }
+}).select('name areaType hazardTypes geometry citizenIds')
+
+const shapeWarningArea = (area) => ({
+    _id: area._id,
+    name: area.name,
+    areaType: area.areaType,
+    hazardTypes: area.hazardTypes,
+    geometry: area.geometry
+})
+
+const shapeWarning = async (warning) => {
+    const targetAreaIds = uniqueIds(warning.targetAreaIds)
+    const areas = await warningAreas(targetAreaIds)
+    const recipients = await getCurrentRecipientsForAreas(areas)
+    const rawWarning = warning.toObject()
+    delete rawWarning.recipientIds
+    return {
+        ...rawWarning,
+        recipientCount: recipients.length,
+        targetAreaIds: areas.map(shapeWarningArea)
+    }
+}
+
+export const createWarning = async (data, officerId) => {
+    const validated = await validateWarningData(data)
+    const recipients = await getCurrentRecipientsForAreas(validated.areas)
+    const warning = await Warning.create({
+        title: validated.title,
+        severity: validated.severity,
+        hazardType: validated.hazardType,
+        message: validated.message,
+        targetAreaIds: validated.targetAreaIds,
+        recipientIds: recipients.map((recipient) => recipient._id),
         createdBy: officerId
     })
+    return shapeWarning(warning)
+}
 
+export const updateWarning = async (warningId, data) => {
+    const warning = await Warning.findOne({ _id: warningId, status: 'draft' })
+    if (!warning) {
+        const error = new Error('Only existing draft warnings can be edited')
+        error.statusCode = 404
+        throw error
+    }
+    const validated = await validateWarningData(data)
+    const recipients = await getCurrentRecipientsForAreas(validated.areas)
+    warning.set({
+        title: validated.title,
+        severity: validated.severity,
+        hazardType: validated.hazardType,
+        message: validated.message,
+        targetAreaIds: validated.targetAreaIds,
+        recipientIds: recipients.map((recipient) => recipient._id)
+    })
+    await warning.save()
     return shapeWarning(warning)
 }
 
 export const previewWarningRecipients = async (targetAreaIds) => {
-    if (
-        !Array.isArray(targetAreaIds)
-        || targetAreaIds.length === 0
-        || targetAreaIds.length > 50
-        || targetAreaIds.some((id) => !mongoose.isValidObjectId(id))
-    ) {
-        const error = new Error('Select between 1 and 50 valid target areas')
-        error.statusCode = 400
-        throw error
-    }
+    const validated = await validateWarningData({
+        title: 'Preview',
+        severity: 'warning',
+        hazardType: 'other',
+        message: 'Preview',
+        targetAreaIds
+    })
+    const recipients = await getCurrentRecipientsForAreas(validated.areas)
+    return { recipientCount: recipients.length }
+}
 
-    const areas = await TargetArea.find({ _id: { $in: targetAreaIds } })
-        .select('citizenIds')
-    if (areas.length !== new Set(targetAreaIds.map(String)).size) {
-        const error = new Error('One or more selected target areas do not exist')
+export const getWarningForReview = async (warningId) => {
+    const warning = await Warning.findById(warningId)
+        .populate('targetAreaIds', 'name areaType hazardTypes geometry')
+        .populate('createdBy', 'name')
+    if (!warning) {
+        const error = new Error('Warning not found')
         error.statusCode = 404
         throw error
     }
+    const distinctTargetAreaIds = uniqueIds(warning.targetAreaIds)
+    const areas = await warningAreas(distinctTargetAreaIds)
+    const recipients = await getCurrentRecipientsForAreas(areas)
+    const publicWarning = warning.toObject()
+    delete publicWarning.recipientIds
+    return {
+        warning: {
+            ...publicWarning,
+            targetAreaIds: areas.map(shapeWarningArea),
+            recipientCount: recipients.length
+        },
+        deliveryAudience: {
+            recipients: recipients.length,
+            smsRecipients: recipients.filter((recipient) => recipient.phone).length,
+            emailFallbackRecipients: recipients.filter((recipient) => recipient.email).length
+        }
+    }
+}
 
-    const memberIds = [...new Set(areas.flatMap((area) => area.citizenIds.map(String)))]
-    return { recipientCount: (await getCurrentCitizenIds(memberIds)).length }
+export const issueWarning = async (warningId) => {
+    const warning = await Warning.findOneAndUpdate(
+        {
+            _id: warningId,
+            status: { $in: ['draft', 'partially_issued', 'delivery_failed'] }
+        },
+        { $set: { status: 'issuing' } },
+        { new: true }
+    )
+    if (!warning) {
+        const existing = await Warning.findById(warningId).select('status')
+        const error = new Error(
+            existing?.status === 'issuing'
+                ? 'This warning is already being issued'
+                : 'This warning is already issued or does not exist'
+        )
+        error.statusCode = existing ? 409 : 404
+        throw error
+    }
+
+    try {
+        const areas = await warningAreas(uniqueIds(warning.targetAreaIds))
+        const recipients = await getCurrentRecipientsForAreas(areas)
+        if (recipients.length === 0) {
+            warning.status = 'draft'
+            await warning.save()
+            const error = new Error('There are no current citizen-role users in the selected target areas')
+            error.statusCode = 400
+            throw error
+        }
+        warning.recipientIds = recipients.map((recipient) => recipient._id)
+        await warning.save()
+
+        let nextIndex = 0
+        const workerCount = Math.min(8, recipients.length)
+        await Promise.all(Array.from({ length: workerCount }, async () => {
+            while (nextIndex < recipients.length) {
+                const recipient = recipients[nextIndex]
+                nextIndex += 1
+                await deliverWarningToCitizen(warning, recipient)
+            }
+        }))
+
+        const deliveries = await WarningDelivery.find({
+            warningId: warning._id,
+            recipientId: { $in: recipients.map((recipient) => recipient._id) }
+        })
+        const failureCounts = new Map()
+        deliveries.forEach((delivery) => {
+            for (const channel of ['inApp', 'sms', 'email']) {
+                if (delivery[channel].status !== 'failed') continue
+                const reason = delivery[channel].error || 'Delivery failed'
+                const key = `${channel}:${reason}`
+                failureCounts.set(key, {
+                    channel,
+                    reason,
+                    count: (failureCounts.get(key)?.count || 0) + 1
+                })
+            }
+        })
+        const counts = {
+            recipients: recipients.length,
+            inAppSent: deliveries.filter((delivery) => delivery.inApp.status === 'sent').length,
+            smsSent: deliveries.filter((delivery) => delivery.sms.status === 'sent').length,
+            smsFailed: deliveries.filter((delivery) => delivery.sms.status === 'failed').length,
+            emailFallbackSent: deliveries.filter((delivery) => delivery.email.status === 'sent').length,
+            emailFallbackFailed: deliveries.filter((delivery) => delivery.email.status === 'failed').length,
+            failedRecipients: deliveries.filter((delivery) => (
+                !(delivery.inApp.status === 'sent' && delivery.sms.status === 'sent')
+                && delivery.email.status !== 'sent'
+            )).length,
+            failureDetails: [...failureCounts.values()]
+        }
+        const anyDelivered = deliveries.some((delivery) => (
+            delivery.inApp.status === 'sent'
+            || delivery.sms.status === 'sent'
+            || delivery.email.status === 'sent'
+        ))
+        warning.status = counts.failedRecipients === 0
+            ? 'issued'
+            : anyDelivered
+                ? 'partially_issued'
+                : 'delivery_failed'
+        warning.issuedAt = warning.status === 'issued' ? new Date() : warning.issuedAt
+        warning.deliverySummary = counts
+        await warning.save()
+        return { warning: await shapeWarning(warning), deliverySummary: counts }
+    } catch (error) {
+        if (warning.status === 'issuing') {
+            warning.status = 'delivery_failed'
+            await warning.save()
+        }
+        throw error
+    }
 }
 
 export const listWarnings = async () => {
