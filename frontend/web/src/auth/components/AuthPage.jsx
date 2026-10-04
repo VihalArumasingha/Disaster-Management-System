@@ -8,10 +8,38 @@ function AuthPage({ mode }) {
     const { user, loading, loadError, login, register } = useAuth()
     const location = useLocation()
     const navigate = useNavigate()
-    const [form, setForm] = useState({ name: '', email: '', password: '' })
+    const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' })
+    const [citizenLocation, setCitizenLocation] = useState(null)
+    const [locationMessage, setLocationMessage] = useState('')
+    const [locating, setLocating] = useState(false)
     const [error, setError] = useState('')
     const [submitting, setSubmitting] = useState(false)
     const registered = location.state?.registered
+
+    const requestLocation = () => {
+        if (!navigator.geolocation) {
+            setLocationMessage('Location is not supported by this browser. You can continue without it.')
+            return
+        }
+
+        setLocating(true)
+        setLocationMessage('')
+        navigator.geolocation.getCurrentPosition(
+            ({ coords }) => {
+                setCitizenLocation({
+                    latitude: coords.latitude,
+                    longitude: coords.longitude
+                })
+                setLocationMessage('Location added. We will use it only to match relevant target areas.')
+                setLocating(false)
+            },
+            () => {
+                setLocationMessage('Location was not shared. You can continue without it.')
+                setLocating(false)
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+        )
+    }
 
     if (loading) {
         return <div className="py-24 text-center text-gray-600">Loading…</div>
@@ -28,7 +56,10 @@ function AuthPage({ mode }) {
 
         try {
             if (isRegister) {
-                await register(form)
+                await register({
+                    ...form,
+                    ...(citizenLocation ? { location: citizenLocation } : {})
+                })
                 navigate('/login', {
                     replace: true,
                     state: { registered: true }
@@ -110,6 +141,20 @@ function AuthPage({ mode }) {
                                 />
                             </label>
                         )}
+                        {isRegister && (
+                            <label className="block text-sm font-medium text-gray-700">
+                                Phone number
+                                <input
+                                    required
+                                    type="tel"
+                                    autoComplete="tel"
+                                    minLength={7}
+                                    value={form.phone}
+                                    onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                                    className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                />
+                            </label>
+                        )}
                         <label className="block text-sm font-medium text-gray-700">
                             Email address
                             <input
@@ -134,8 +179,27 @@ function AuthPage({ mode }) {
                             />
                             {isRegister && <span className="mt-1 block text-xs text-gray-500">At least 8 characters.</span>}
                         </label>
+                            {isRegister && (
+                                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                    <p className="text-sm font-medium text-gray-800">Your location (optional)</p>
+                                    <p className="mt-1 text-xs leading-5 text-gray-600">
+                                        Share your current location to be matched to any DMC target area that covers it.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={requestLocation}
+                                        disabled={locating}
+                                        className="mt-3 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+                                    >
+                                        {locating ? 'Getting location…' : citizenLocation ? 'Update my location' : 'Use my current location'}
+                                    </button>
+                                    {locationMessage && (
+                                        <p role="status" className="mt-2 text-xs text-gray-600">{locationMessage}</p>
+                                    )}
+                                </div>
+                            )}
                         <button
-                            disabled={submitting}
+                            disabled={submitting || locating}
                             className="w-full rounded-xl bg-blue-700 px-4 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {submitting

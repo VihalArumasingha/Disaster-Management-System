@@ -2,9 +2,30 @@ import express from 'express'
 import authenticate from '../../../middleware/authentication/authMiddleware.js'
 import authorize from '../../../middleware/authorization/roleMiddleware.js'
 import { USER_ROLES } from '../../../utils/constants.js'
+import {
+    openWeatherTile,
+    overview,
+    profile,
+    saveTargetArea,
+    saveWarning,
+    targetAreaPreview,
+    targetAreas,
+    warningRecipientPreview,
+    warnings
+} from '../controllers/dmcOfficerController.js'
 
 const router = express.Router()
 
 router.use(authenticate, authorize(USER_ROLES.dmcofficer))
+
+router.get('/overview', overview)
+router.get('/profile', profile)
+router.get('/target-areas', targetAreas)
+router.post('/target-areas/preview', targetAreaPreview)
+router.post('/target-areas', saveTargetArea)
+router.get('/warnings', warnings)
+router.post('/warnings', saveWarning)
+router.post('/warnings/preview', warningRecipientPreview)
+router.get('/map/tiles/:layer/:z/:x/:y', openWeatherTile)
 
 export default router

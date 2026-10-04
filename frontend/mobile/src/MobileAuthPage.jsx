@@ -8,7 +8,10 @@ function MobileAuthPage({ mode }) {
     const { user, loading, loadError, signIn, signUp } = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
-    const [form, setForm] = useState({ name: '', email: '', password: '' })
+    const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' })
+    const [citizenLocation, setCitizenLocation] = useState(null)
+    const [locationMessage, setLocationMessage] = useState('')
+    const [locating, setLocating] = useState(false)
     const [error, setError] = useState('')
     const [submitting, setSubmitting] = useState(false)
 
@@ -17,6 +20,31 @@ function MobileAuthPage({ mode }) {
     }
     if (user?.role === CITIZEN_ROLE) return <Navigate to="/dashboard" replace />
 
+    const requestLocation = () => {
+        if (!navigator.geolocation) {
+            setLocationMessage('Location is not supported by this browser. You can continue without it.')
+            return
+        }
+
+        setLocating(true)
+        setLocationMessage('')
+        navigator.geolocation.getCurrentPosition(
+            ({ coords }) => {
+                setCitizenLocation({
+                    latitude: coords.latitude,
+                    longitude: coords.longitude
+                })
+                setLocationMessage('Location added. We will use it only to match relevant target areas.')
+                setLocating(false)
+            },
+            () => {
+                setLocationMessage('Location was not shared. You can continue without it.')
+                setLocating(false)
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+        )
+    }
+
     const handleSubmit = async (event) => {
         event.preventDefault()
         setError('')
@@ -24,7 +52,10 @@ function MobileAuthPage({ mode }) {
 
         try {
             if (isRegister) {
-                await signUp(form)
+                await signUp({
+                    ...form,
+                    ...(citizenLocation ? { location: citizenLocation } : {})
+                })
                 navigate('/login', {
                     replace: true,
                     state: { registered: true }
@@ -93,6 +124,20 @@ function MobileAuthPage({ mode }) {
                             />
                         </label>
                     )}
+                    {isRegister && (
+                        <label className="block text-sm font-medium text-slate-700">
+                            Phone number
+                            <input
+                                required
+                                type="tel"
+                                autoComplete="tel"
+                                minLength={7}
+                                value={form.phone}
+                                onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                                className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                            />
+                        </label>
+                    )}
                     <label className="block text-sm font-medium text-slate-700">
                         Email address
                         <input
@@ -104,6 +149,25 @@ function MobileAuthPage({ mode }) {
                             className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                         />
                     </label>
+                    {isRegister && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p className="text-sm font-medium text-slate-800">Your location (optional)</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-600">
+                                Share your current location to be matched to any DMC target area that covers it.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={requestLocation}
+                                disabled={locating}
+                                className="mt-3 min-h-10 rounded-lg border border-blue-200 bg-white px-3 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+                            >
+                                {locating ? 'Getting location…' : citizenLocation ? 'Update my location' : 'Use my current location'}
+                            </button>
+                            {locationMessage && (
+                                <p role="status" className="mt-2 text-xs text-slate-600">{locationMessage}</p>
+                            )}
+                        </div>
+                    )}
                     <label className="block text-sm font-medium text-slate-700">
                         Password
                         <input
@@ -118,7 +182,7 @@ function MobileAuthPage({ mode }) {
                         {isRegister && <span className="mt-1 block text-xs text-slate-500">At least 8 characters.</span>}
                     </label>
                     <button
-                        disabled={submitting}
+                        disabled={submitting || locating}
                         className="min-h-12 w-full rounded-xl bg-blue-700 px-4 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {submitting ? 'Please wait…' : isRegister ? 'Create account' : 'Sign in'}

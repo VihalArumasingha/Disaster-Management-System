@@ -1,6 +1,10 @@
 import bcrypt from 'bcryptjs'
 import User from '../../../models/User.js'
 import { normalizeRole, USER_ROLES } from '../../../utils/constants.js'
+import {
+    addCitizenToTargetAreas,
+    getCitizenTargetAreaIds
+} from '../../../utils/citizenTargetAreas.js'
 
 const createAuthError = (message, statusCode) => {
     const error = new Error(message)
@@ -8,7 +12,7 @@ const createAuthError = (message, statusCode) => {
     return error
 }
 
-export const registerUser = async ({ name, email, password }) => {
+export const registerUser = async ({ name, email, password, phone, location }) => {
     const normalizedEmail = email.trim().toLowerCase()
     const existingUser = await User.findOne({ email: normalizedEmail })
 
@@ -17,15 +21,27 @@ export const registerUser = async ({ name, email, password }) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12)
+    const point = location
+        ? {
+            type: 'Point',
+            coordinates: [location.longitude, location.latitude]
+        }
+        : undefined
+    const targetAreaIds = point
+        ? await getCitizenTargetAreaIds(point)
+        : []
 
     try {
         const user = await User.create({
             name: name.trim(),
             email: normalizedEmail,
             password: hashedPassword,
+            phone: phone.trim(),
+            ...(point ? { location: point } : {}),
             role: USER_ROLES.citizen
         })
 
+        await addCitizenToTargetAreas(user._id, targetAreaIds)
         return user
     } catch (error) {
         if (error.code === 11000) {
