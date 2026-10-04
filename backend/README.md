@@ -61,13 +61,25 @@ Configure these backend environment variables:
   `POST https://api.textbee.dev/api/v1/gateway/send-sms`; `TEXTBEE_BASE_URL`
   can override the API base URL for a self-hosted deployment. TextBee requires
   phone numbers in E.164 format and an enabled, paired Android sending device.
+- `TEXTBEE_WEBHOOK_SECRET` for signed delivery-status callbacks. Create a
+  TextBee webhook subscription pointing to
+  `https://<your-public-api-host>/api/webhooks/textbee`, using the same
+  20-character-or-longer signing secret, and select `MESSAGE_SENT`,
+  `MESSAGE_DELIVERED`, `MESSAGE_FAILED`, and `UNKNOWN_STATE`. The API verifies
+  `X-Signature` over the raw request body and processes events idempotently.
+  For local development, TextBee requires a public HTTPS URL (a tunnel can
+  expose the local API); localhost URLs are not reachable by TextBee.
 - `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` for Brevo email fallback.
   `BREVO_SENDER_NAME` is optional.
 
 Per-recipient channel outcomes and provider errors are retained with the
-warning. A successful TextBee HTTP response means the message was accepted into
-its queue; it does not confirm carrier delivery. Partial or failed issuances can
-be retried from the warnings page; successful channels are not sent again.
+warning. A successful TextBee response initially marks the SMS as queued.
+`MESSAGE_SENT` means the carrier accepted it and `MESSAGE_DELIVERED` means the
+carrier provided a handset delivery report. `MESSAGE_FAILED` updates only that
+recipient's SMS and triggers only that recipient's email fallback. `UNKNOWN_STATE`
+is surfaced for review and does not trigger fallback because it is not a
+confirmed failure. Partial or failed issuances can be retried from the warnings
+page; successful channels are not sent again.
 Citizen in-app alerts are available
 from the authenticated `GET /api/citizen/notifications` endpoint and can be
 marked read with `PATCH /api/citizen/notifications/:notificationId/read`.

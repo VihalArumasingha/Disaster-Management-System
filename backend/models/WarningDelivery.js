@@ -4,13 +4,16 @@ const channelSchema = new mongoose.Schema(
     {
         status: {
             type: String,
-            enum: ['pending', 'sending', 'sent', 'failed', 'not_required'],
+            enum: ['pending', 'sending', 'queued', 'sent', 'delivered', 'failed', 'unknown', 'not_required'],
             default: 'pending'
         },
         providerMessageId: { type: String, default: '' },
+        providerBatchId: { type: String, default: '' },
         error: { type: String, default: '' },
         attemptedAt: { type: Date, default: null },
-        sentAt: { type: Date, default: null }
+        acceptedAt: { type: Date, default: null },
+        sentAt: { type: Date, default: null },
+        deliveredAt: { type: Date, default: null }
     },
     { _id: false }
 )

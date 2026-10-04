@@ -468,19 +468,23 @@ export const issueWarning = async (warningId) => {
         const counts = {
             recipients: recipients.length,
             inAppSent: deliveries.filter((delivery) => delivery.inApp.status === 'sent').length,
-            smsSent: deliveries.filter((delivery) => delivery.sms.status === 'sent').length,
+            smsQueued: deliveries.filter((delivery) => delivery.sms.status === 'queued').length,
+            smsSent: deliveries.filter((delivery) => ['sent', 'delivered'].includes(delivery.sms.status)).length,
+            smsDelivered: deliveries.filter((delivery) => delivery.sms.status === 'delivered').length,
             smsFailed: deliveries.filter((delivery) => delivery.sms.status === 'failed').length,
+            smsUnknown: deliveries.filter((delivery) => delivery.sms.status === 'unknown').length,
             emailFallbackSent: deliveries.filter((delivery) => delivery.email.status === 'sent').length,
             emailFallbackFailed: deliveries.filter((delivery) => delivery.email.status === 'failed').length,
             failedRecipients: deliveries.filter((delivery) => (
-                !(delivery.inApp.status === 'sent' && delivery.sms.status === 'sent')
-                && delivery.email.status !== 'sent'
+                delivery.inApp.status === 'failed'
+                && delivery.sms.status === 'failed'
+                && delivery.email.status === 'failed'
             )).length,
             failureDetails: [...failureCounts.values()]
         }
         const anyDelivered = deliveries.some((delivery) => (
             delivery.inApp.status === 'sent'
-            || delivery.sms.status === 'sent'
+            || ['sent', 'delivered'].includes(delivery.sms.status)
             || delivery.email.status === 'sent'
         ))
         warning.status = counts.failedRecipients === 0
@@ -491,7 +495,14 @@ export const issueWarning = async (warningId) => {
         warning.issuedAt = warning.status === 'issued' ? new Date() : warning.issuedAt
         warning.deliverySummary = counts
         await warning.save()
-        return { warning: await shapeWarning(warning), deliverySummary: counts }
+        return {
+            warning: {
+                _id: warning._id,
+                status: warning.status,
+                issuedAt: warning.issuedAt
+            },
+            deliverySummary: counts
+        }
     } catch (error) {
         if (warning.status === 'issuing') {
             warning.status = 'delivery_failed'
@@ -507,7 +518,26 @@ export const listWarnings = async () => {
         .populate('createdBy', 'name')
         .sort({ createdAt: -1 })
 
-    return Promise.all(warnings.map(shapeWarning))
+    const recipientIds = uniqueIds(warnings.flatMap((warning) => warning.recipientIds))
+    const currentCitizenIds = recipientIds.length > 0
+        ? await User.find({
+            _id: { $in: recipientIds },
+            role: { $in: CITIZEN_ROLE_VALUES }
+        }).distinct('_id')
+        : []
+    const currentCitizenIdSet = new Set(currentCitizenIds.map(String))
+
+    return warnings.map((warning) => {
+        const publicWarning = warning.toObject()
+        const warningRecipientIds = publicWarning.recipientIds || []
+        delete publicWarning.recipientIds
+        return {
+            ...publicWarning,
+            recipientCount: warningRecipientIds.filter((id) => (
+                currentCitizenIdSet.has(String(id))
+            )).length
+        }
+    })
 }
 
 export const getOverview = async () => {

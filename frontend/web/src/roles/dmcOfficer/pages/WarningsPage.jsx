@@ -18,23 +18,29 @@ function WarningsPage() {
 
     useEffect(() => {
         let active = true
-        api.get('/dmcofficer/warnings')
-            .then(({ data }) => {
-                if (active) setWarnings(data.warnings)
-            })
-            .catch((requestError) => {
+        const loadWarnings = async (initial = false) => {
+            try {
+                const { data } = await api.get('/dmcofficer/warnings')
+                if (active) {
+                    setWarnings(data.warnings)
+                    setError('')
+                }
+            } catch (requestError) {
                 if (active) {
                     setError(
                         requestError.response?.data?.message
                         || 'Could not load warnings.'
                     )
                 }
-            })
-            .finally(() => {
-                if (active) setLoading(false)
-            })
+            } finally {
+                if (active && initial) setLoading(false)
+            }
+        }
+        loadWarnings(true)
+        const refreshTimer = setInterval(() => loadWarnings(), 10000)
         return () => {
             active = false
+            clearInterval(refreshTimer)
         }
     }, [])
 
@@ -65,10 +71,11 @@ function WarningsPage() {
                     {location.state.deliverySummary && (
                         <p className="mt-1">
                             In-app: {location.state.deliverySummary.inAppSent}/{location.state.deliverySummary.recipients} ·
-                            SMS: {location.state.deliverySummary.smsSent} queued, {location.state.deliverySummary.smsFailed} failed ·
+                            SMS: {location.state.deliverySummary.smsQueued || 0} queued, {location.state.deliverySummary.smsSent} carrier accepted, {location.state.deliverySummary.smsDelivered || 0} delivery-confirmed, {location.state.deliverySummary.smsFailed} failed ·
                             Email fallback: {location.state.deliverySummary.emailFallbackSent} sent, {location.state.deliverySummary.emailFallbackFailed} failed.
                         </p>
                     )}
+                    <p className="mt-1 text-xs">TextBee delivery updates refresh automatically.</p>
                 </div>
             )}
             {error && <p role="alert" className="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
@@ -103,7 +110,7 @@ function WarningsPage() {
                                 <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
                                     <p>
                                         In-app {warning.deliverySummary.inAppSent}/{warning.deliverySummary.recipients} ·
-                                        SMS {warning.deliverySummary.smsSent} queued / {warning.deliverySummary.smsFailed} failed ·
+                                        SMS {warning.deliverySummary.smsQueued || 0} queued / {warning.deliverySummary.smsSent} carrier accepted / {warning.deliverySummary.smsDelivered || 0} delivery-confirmed / {warning.deliverySummary.smsFailed} failed / {warning.deliverySummary.smsUnknown || 0} unknown ·
                                         Email fallback {warning.deliverySummary.emailFallbackSent} sent / {warning.deliverySummary.emailFallbackFailed} failed
                                     </p>
                                     {warning.deliverySummary.failureDetails?.length > 0 && (

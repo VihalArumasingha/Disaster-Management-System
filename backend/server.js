@@ -11,6 +11,8 @@ import dmcOfficerRoutes from './roles/dmcOfficer/routes/dmcOfficerRoutes.js'
 import dutyOfficerRoutes from './roles/dutyOfficer/routes/dutyOfficerRoutes.js'
 import ngoManagerRoutes from './roles/ngoManager/routes/ngoManagerRoutes.js'
 import weatherRoutes from './roles/weather/routes/weatherRoutes.js'
+import { receiveTextBeeWebhook } from './roles/webhooks/textBeeWebhookController.js'
+import { processPendingTextBeeWebhookEvents } from './roles/dmcOfficer/services/warningDeliveryService.js'
 
 import errorMiddleware from './middleware/errorHandling/errorMiddleware.js'
 
@@ -18,7 +20,11 @@ dotenv.config()
 
 const app = express()
 
-connectDB()
+connectDB().then(() => {
+    processPendingTextBeeWebhookEvents().catch((error) => {
+        console.error(`TextBee webhook recovery failed: ${error.message}`)
+    })
+})
 
 const clientOrigins = [
     ...(process.env.CLIENT_URLS || '').split(','),
@@ -46,6 +52,12 @@ app.use(
     })
 )
 
+app.post(
+    '/api/webhooks/textbee',
+    express.raw({ type: 'application/json', limit: '100kb' }),
+    receiveTextBeeWebhook
+)
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
@@ -66,6 +78,13 @@ app.use('/api/ngomanager', ngoManagerRoutes)
 app.use('/api/weather', weatherRoutes)
 
 app.use(errorMiddleware)
+
+const textBeeEventWorker = setInterval(() => {
+    processPendingTextBeeWebhookEvents().catch((error) => {
+        console.error(`TextBee webhook processing failed: ${error.message}`)
+    })
+}, 5000)
+textBeeEventWorker.unref()
 
 const PORT = process.env.PORT || 5000
 
