@@ -1,17 +1,20 @@
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from './auth'
+import CitizenDashboard from './CitizenDashboard'
+import MobileAuthPage from './MobileAuthPage'
 
 function App() {
     return (
         <BrowserRouter>
-            <div className="min-h-screen bg-gray-50">
-                <h1 className="text-2xl font-bold">
-                    Disaster Management System
-                </h1>
-
-                <p>
-                    Citizen Mobile View
-                </p>
-            </div>
+            <AuthProvider>
+                <Routes>
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="/login" element={<MobileAuthPage mode="login" />} />
+                    <Route path="/register" element={<MobileAuthPage mode="register" />} />
+                    <Route path="/dashboard" element={<CitizenDashboard />} />
+                    <Route path="*" element={<Navigate to="/login" replace />} />
+                </Routes>
+            </AuthProvider>
         </BrowserRouter>
     )
 }
