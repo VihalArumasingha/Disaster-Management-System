@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { normalizeRole, USER_ROLES } from '../utils/constants.js'
 
 const userSchema = new mongoose.Schema(
     {
@@ -23,13 +24,10 @@ const userSchema = new mongoose.Schema(
 
         role: {
             type: String,
-            enum: [
-                'CITIZEN',
-                'DMC_OFFICER',
-                'DUTY_OFFICER',
-                'NGO_MANAGER'
-            ],
-            required: true
+            enum: Object.values(USER_ROLES),
+            default: USER_ROLES.citizen,
+            required: true,
+            set: normalizeRole
         }
     },
     {

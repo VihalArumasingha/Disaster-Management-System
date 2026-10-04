@@ -4,8 +4,3 @@ export const USER_ROLES = {
     dutyofficer: 'dutyofficer',
     ngomanager: 'ngomanager'
 }
-
-export const normalizeRole = (role) => {
-    if (typeof role !== 'string') return ''
-    return role.toLowerCase().replace(/[_-]/g, '')
-}

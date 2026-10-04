@@ -20,9 +20,28 @@ const app = express()
 
 connectDB()
 
+const clientOrigins = [
+    ...(process.env.CLIENT_URLS || '').split(','),
+    process.env.CLIENT_URL || ''
+]
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
+if (clientOrigins.length === 0) {
+    clientOrigins.push('http://localhost:5173', 'http://localhost:5174')
+} else if (process.env.NODE_ENV !== 'production') {
+    clientOrigins.push('http://localhost:5173', 'http://localhost:5174')
+}
+
 app.use(
     cors({
-        origin: process.env.CLIENT_URL || 'http://localhost:5173',
+        origin: (origin, callback) => {
+            if (!origin || clientOrigins.includes(origin)) {
+                return callback(null, true)
+            }
+
+            return callback(new Error('Origin is not allowed by CORS'))
+        },
         credentials: true
     })
 )
@@ -41,9 +60,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 
 app.use('/api/citizen', citizenRoutes)
-app.use('/api/dmc-officer', dmcOfficerRoutes)
-app.use('/api/duty-officer', dutyOfficerRoutes)
-app.use('/api/ngo-manager', ngoManagerRoutes)
+app.use('/api/dmcofficer', dmcOfficerRoutes)
+app.use('/api/dutyofficer', dutyOfficerRoutes)
+app.use('/api/ngomanager', ngoManagerRoutes)
 app.use('/api/weather', weatherRoutes)
 
 app.use(errorMiddleware)
