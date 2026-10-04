@@ -35,8 +35,16 @@ const warningSchema = new mongoose.Schema(
         }],
         status: {
             type: String,
-            enum: ['draft'],
+            enum: ['draft', 'issuing', 'issued', 'partially_issued', 'delivery_failed'],
             default: 'draft'
+        },
+        issuedAt: {
+            type: Date,
+            default: null
+        },
+        deliverySummary: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null
         },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,

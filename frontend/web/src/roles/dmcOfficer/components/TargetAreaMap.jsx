@@ -19,15 +19,19 @@ const toLeafletCoordinates = (geometry) => (
 
 function TargetAreaMap({
     geometry = null,
+    overlays = [],
     onChange,
     weatherLayer = '',
     editable = false,
     height = '420px'
 }) {
     const mapContainer = useRef(null)
+    const mapRef = useRef(null)
     const featureGroupRef = useRef(null)
     const changeHandler = useRef(onChange)
     const geometryRef = useRef(geometry)
+    const overlaysRef = useRef(overlays)
+    const overlayGroupRef = useRef(null)
     const [weatherError, setWeatherError] = useState('')
 
     useEffect(() => {
@@ -39,11 +43,35 @@ function TargetAreaMap({
     }, [geometry])
 
     useEffect(() => {
+        overlaysRef.current = overlays
+        const overlayGroup = overlayGroupRef.current
+        if (!overlayGroup) return
+        overlayGroup.clearLayers()
+        let bounds
+        overlays.forEach(({ geometry: overlayGeometry, count = 1, name = 'Target area' }) => {
+            const coordinates = toLeafletCoordinates(overlayGeometry)
+            if (coordinates.length === 0) return
+            const boundsForArea = L.latLngBounds(coordinates)
+            for (let index = 0; index < count; index += 1) {
+                overlayGroup.addLayer(L.polygon(coordinates, {
+                    color: '#dc2626',
+                    fillColor: '#ef4444',
+                    fillOpacity: 0.2,
+                    weight: 2
+                }).bindTooltip(`${name}${count > 1 ? ` × ${count}` : ''}`))
+            }
+            bounds = bounds ? bounds.extend(boundsForArea) : boundsForArea
+        })
+        if (bounds) mapRef.current?.fitBounds(bounds, { padding: [20, 20] })
+    }, [overlays])
+
+    useEffect(() => {
         if (!mapContainer.current) return undefined
 
         const map = L.map(mapContainer.current, {
             scrollWheelZoom: true
         }).setView([6.9271, 79.8612], 10)
+        mapRef.current = map
         L.tileLayer(
             'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
             {
@@ -53,6 +81,8 @@ function TargetAreaMap({
         ).addTo(map)
         const featureGroup = new L.FeatureGroup().addTo(map)
         featureGroupRef.current = featureGroup
+        const overlayGroup = new L.FeatureGroup().addTo(map)
+        overlayGroupRef.current = overlayGroup
 
         let weatherOverlay
         if (weatherLayer && weatherLayers[weatherLayer]) {
@@ -131,10 +161,23 @@ function TargetAreaMap({
 
         const resizeObserver = new ResizeObserver(() => map.invalidateSize())
         resizeObserver.observe(mapContainer.current)
+        overlaysRef.current.forEach(({ geometry: overlayGeometry, count = 1, name = 'Target area' }) => {
+            const coordinates = toLeafletCoordinates(overlayGeometry)
+            for (let index = 0; index < count && coordinates.length > 0; index += 1) {
+                L.polygon(coordinates, {
+                    color: '#dc2626',
+                    fillColor: '#ef4444',
+                    fillOpacity: 0.2,
+                    weight: 2
+                }).bindTooltip(`${name}${count > 1 ? ` × ${count}` : ''}`).addTo(overlayGroup)
+            }
+        })
 
         return () => {
             resizeObserver.disconnect()
             featureGroupRef.current = null
+            overlayGroupRef.current = null
+            mapRef.current = null
             map.remove()
         }
     }, [editable, weatherLayer])

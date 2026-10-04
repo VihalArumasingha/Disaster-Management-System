@@ -49,8 +49,40 @@ Role-specific API routers also require a valid session and matching role.
 DMC officer routes use `/api/dmcofficer` and require the `dmcofficer` role.
 Target-area polygons are GeoJSON and use MongoDB geospatial queries. Matched
 citizen IDs are stored on each target area; only current `citizen` accounts
-are counted or selected for warning drafts. Warning creation saves a draft
-and a recipient snapshot; it does not send SMS or push notifications.
+are counted or selected for warnings. A warning is saved as a draft, can be
+edited, and requires a separate read-only review and explicit issue confirmation.
+The audience is refreshed from the selected polygons at issue time.
+
+On issue, the API saves one in-app alert and attempts an SMS for each eligible
+citizen. If either primary channel fails, it attempts email as a fallback.
+Configure these backend environment variables:
+
+- `TEXTBEE_API_KEY` for TextBee SMS. The API uses the `x-api-key` header with
+  `POST https://api.textbee.dev/api/v1/gateway/send-sms`; `TEXTBEE_BASE_URL`
+  can override the API base URL for a self-hosted deployment. TextBee requires
+  phone numbers in E.164 format and an enabled, paired Android sending device.
+- `TEXTBEE_WEBHOOK_SECRET` for signed delivery-status callbacks. Create a
+  TextBee webhook subscription pointing to
+  `https://<your-public-api-host>/api/webhooks/textbee`, using the same
+  20-character-or-longer signing secret, and select `MESSAGE_SENT`,
+  `MESSAGE_DELIVERED`, `MESSAGE_FAILED`, and `UNKNOWN_STATE`. The API verifies
+  `X-Signature` over the raw request body and processes events idempotently.
+  For local development, TextBee requires a public HTTPS URL (a tunnel can
+  expose the local API); localhost URLs are not reachable by TextBee.
+- `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` for Brevo email fallback.
+  `BREVO_SENDER_NAME` is optional.
+
+Per-recipient channel outcomes and provider errors are retained with the
+warning. A successful TextBee response initially marks the SMS as queued.
+`MESSAGE_SENT` means the carrier accepted it and `MESSAGE_DELIVERED` means the
+carrier provided a handset delivery report. `MESSAGE_FAILED` updates only that
+recipient's SMS and triggers only that recipient's email fallback. `UNKNOWN_STATE`
+is surfaced for review and does not trigger fallback because it is not a
+confirmed failure. Partial or failed issuances can be retried from the warnings
+page; successful channels are not sent again.
+Citizen in-app alerts are available
+from the authenticated `GET /api/citizen/notifications` endpoint and can be
+marked read with `PATCH /api/citizen/notifications/:notificationId/read`.
 
 The map uses OpenStreetMap tiles as its base layer and optional OpenWeather
 precipitation, clouds, or temperature overlays. Configure `OPENWEATHER_KEY`

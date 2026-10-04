@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Users } from 'lucide-react'
 import api from '../../../services/api'
+import TargetAreaMap from '../components/TargetAreaMap'
 
 const hazardOptions = ['flood', 'landslide', 'tsunami', 'storm', 'other']
 const severityOptions = ['advisory', 'watch', 'warning', 'emergency']
 
 function CreateWarningPage() {
     const navigate = useNavigate()
+    const { warningId } = useParams()
     const [areas, setAreas] = useState([])
     const [form, setForm] = useState({
         title: '',
@@ -18,6 +20,7 @@ function CreateWarningPage() {
     const [targetAreaIds, setTargetAreaIds] = useState([])
     const [recipientCount, setRecipientCount] = useState(null)
     const [loadingAreas, setLoadingAreas] = useState(true)
+    const [loadingWarning, setLoadingWarning] = useState(Boolean(warningId))
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState('')
 
@@ -42,6 +45,37 @@ function CreateWarningPage() {
             active = false
         }
     }, [])
+
+    useEffect(() => {
+        if (!warningId) return undefined
+        let active = true
+        api.get(`/dmcofficer/warnings/${warningId}/review`)
+            .then(({ data }) => {
+                if (!active) return
+                if (data.warning.status !== 'draft') {
+                    setError('Only draft warnings can be edited.')
+                    return
+                }
+                setForm({
+                    title: data.warning.title,
+                    severity: data.warning.severity,
+                    hazardType: data.warning.hazardType,
+                    message: data.warning.message
+                })
+                setTargetAreaIds([...new Set(data.warning.targetAreaIds.map((area) => area._id))])
+            })
+            .catch((requestError) => {
+                if (active) {
+                    setError(requestError.response?.data?.message || 'Could not load this warning.')
+                }
+            })
+            .finally(() => {
+                if (active) setLoadingWarning(false)
+            })
+        return () => {
+            active = false
+        }
+    }, [warningId])
 
     useEffect(() => {
         if (targetAreaIds.length === 0) return undefined
@@ -72,12 +106,20 @@ function CreateWarningPage() {
     const toggleArea = (areaId) => {
         setError('')
         setRecipientCount(null)
-        setTargetAreaIds((current) => (
-            current.includes(areaId)
+        setTargetAreaIds((current) => {
+            return current.includes(areaId)
                 ? current.filter((id) => id !== areaId)
                 : [...current, areaId]
-        ))
+        })
     }
+
+    const selectedOverlays = useMemo(() => areas
+        .filter((area) => targetAreaIds.includes(area._id))
+        .map((area) => ({
+            geometry: area.geometry,
+            name: area.name,
+            count: 1
+        })), [areas, targetAreaIds])
 
     const submitWarning = async (event) => {
         event.preventDefault()
@@ -89,13 +131,14 @@ function CreateWarningPage() {
 
         setSubmitting(true)
         try {
-            await api.post('/dmcofficer/warnings', {
-                ...form,
-                targetAreaIds
-            })
+            if (warningId) {
+                await api.put(`/dmcofficer/warnings/${warningId}`, { ...form, targetAreaIds })
+            } else {
+                await api.post('/dmcofficer/warnings', { ...form, targetAreaIds })
+            }
             navigate('/dmcofficer/warnings', {
                 replace: true,
-                state: { created: true }
+                state: warningId ? { updated: true } : { created: true }
             })
         } catch (requestError) {
             setError(
@@ -114,11 +157,14 @@ function CreateWarningPage() {
             </Link>
             <div className="mt-5">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">Public safety</p>
-                <h1 className="mt-2 text-3xl font-bold text-slate-900">Create Warning</h1>
+                <h1 className="mt-2 text-3xl font-bold text-slate-900">{warningId ? 'Edit Warning Draft' : 'Create Warning'}</h1>
                 <p className="mt-2 text-slate-600">Choose target areas to automatically select the citizens with locations in those boundaries.</p>
             </div>
             {error && <p role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
 
+            {(loadingAreas || loadingWarning) && (
+                <p className="mt-6 text-sm text-slate-600">Loading warning details…</p>
+            )}
             <form onSubmit={submitWarning} className="mt-7 space-y-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
                 <label className="block text-sm font-semibold text-slate-800">
                     Warning Title <span className="text-red-600">*</span>
@@ -202,6 +248,16 @@ function CreateWarningPage() {
                     )}
                 </fieldset>
 
+                {selectedOverlays.length > 0 && (
+                    <section>
+                        <h2 className="text-sm font-semibold text-slate-800">Combined target-area map</h2>
+                        <p className="mt-1 text-xs text-slate-500">Each selected target area is shown together on this map.</p>
+                        <div className="mt-3">
+                            <TargetAreaMap overlays={selectedOverlays} height="360px" />
+                        </div>
+                    </section>
+                )}
+
                 <div className="flex items-center gap-3 rounded-xl bg-blue-50 p-4">
                     <Users size={21} className="shrink-0 text-blue-700" />
                     <div>
@@ -216,7 +272,7 @@ function CreateWarningPage() {
                     </div>
                 </div>
                 <p className="text-xs leading-5 text-slate-500">
-                    Only current citizen-role accounts are included. This saves a draft; notifications are not sent.
+                    Only current citizen-role accounts are included. Notification delivery starts only after the final review and issue confirmation.
                 </p>
 
                 <div className="flex flex-col-reverse justify-end gap-3 border-t border-slate-100 pt-5 sm:flex-row">
@@ -228,10 +284,10 @@ function CreateWarningPage() {
                     </Link>
                     <button
                         type="submit"
-                        disabled={submitting || loadingAreas || areas.length === 0}
+                        disabled={submitting || loadingAreas || loadingWarning || areas.length === 0}
                         className="min-h-11 rounded-lg bg-blue-700 px-5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {submitting ? 'Saving…' : 'Save Warning Draft'}
+                        {submitting ? 'Saving…' : warningId ? 'Save Draft Changes' : 'Save Warning Draft'}
                     </button>
                 </div>
             </form>

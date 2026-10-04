@@ -3,11 +3,14 @@ import { normalizeRole } from '../../../utils/constants.js'
 import {
     createTargetArea,
     createWarning,
+    getWarningForReview,
     getOverview,
+    issueWarning,
     listTargetAreas,
     listWarnings,
     previewTargetArea,
-    previewWarningRecipients
+    previewWarningRecipients,
+    updateWarning
 } from '../services/dmcOfficerService.js'
 
 export const overview = async (req, res, next) => {
@@ -56,6 +59,31 @@ export const saveWarning = async (req, res, next) => {
     try {
         const warning = await createWarning(req.body, req.user._id)
         res.status(201).json({ success: true, warning })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const editWarning = async (req, res, next) => {
+    try {
+        const warning = await updateWarning(req.params.warningId, req.body)
+        res.json({ success: true, warning })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const reviewWarning = async (req, res, next) => {
+    try {
+        res.json({ success: true, ...(await getWarningForReview(req.params.warningId)) })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const issueWarningNow = async (req, res, next) => {
+    try {
+        res.json({ success: true, ...(await issueWarning(req.params.warningId)) })
     } catch (error) {
         next(error)
     }

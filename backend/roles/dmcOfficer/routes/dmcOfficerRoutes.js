@@ -4,8 +4,11 @@ import authorize from '../../../middleware/authorization/roleMiddleware.js'
 import { USER_ROLES } from '../../../utils/constants.js'
 import {
     openWeatherTile,
+    editWarning,
+    issueWarningNow,
     overview,
     profile,
+    reviewWarning,
     saveTargetArea,
     saveWarning,
     targetAreaPreview,
@@ -26,6 +29,9 @@ router.post('/target-areas', saveTargetArea)
 router.get('/warnings', warnings)
 router.post('/warnings', saveWarning)
 router.post('/warnings/preview', warningRecipientPreview)
+router.get('/warnings/:warningId/review', reviewWarning)
+router.put('/warnings/:warningId', editWarning)
+router.post('/warnings/:warningId/issue', issueWarningNow)
 router.get('/map/tiles/:layer/:z/:x/:y', openWeatherTile)
 
 export default router
