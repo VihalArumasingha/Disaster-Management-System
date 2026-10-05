@@ -97,7 +97,7 @@ const warningSchema = new mongoose.Schema(
         images: {
             type: [{
                 url: String,
-                filename: String
+                public_id: String
             }],
             default: []
         },
@@ -144,6 +144,6 @@ const warningSchema = new mongoose.Schema(
 warningSchema.index({ createdAt: -1 })
 warningSchema.index({ recipientIds: 1, status: 1, issuedAt: -1 })
 
-const Warning = mongoose.model('Warning', warningSchema)
+const Warning = mongoose.model('Warning', warningSchema, 'activedisasters')
 
 export default Warning

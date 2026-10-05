@@ -107,13 +107,10 @@ export default function NGODisasterPage() {
             if (!res.ok) throw new Error(`Server error ${res.status}`)
             const json = await res.json()
             
-            // Filter to show only active disasters (issued or partially_issued)
-            const activeDisasters = (json.warnings || []).filter(
-                w => w.status === 'issued' || w.status === 'partially_issued'
-            )
+            const allDisasters = json.warnings || []
             
-            setDisasters(activeDisasters)
-            setTotal(activeDisasters.length)
+            setDisasters(allDisasters)
+            setTotal(allDisasters.length)
         } catch (e) {
             setError(e.message || 'Failed to load disasters')
         } finally {
@@ -132,7 +129,8 @@ export default function NGODisasterPage() {
                 method: 'DELETE',
                 credentials: 'include'
             })
-            if (!res.ok) throw new Error(`Server error ${res.status}`)
+            const json = await res.json().catch(() => null)
+            if (!res.ok) throw new Error(json?.message || `Server error ${res.status}`)
             // Remove from local state
             setDisasters(prev => prev.filter(d => d._id !== disasterId))
             setTotal(prev => prev - 1)
@@ -394,8 +392,27 @@ export default function NGODisasterPage() {
                                         </td>
 
                                         {/* Images */}
-                                        <td className="px-4 py-3 text-slate-600">
-                                            {d.images?.length || 0}
+                                        <td className="px-4 py-3">
+                                            {d.images && d.images.length > 0 ? (
+                                                <div className="flex gap-1">
+                                                    {d.images.slice(0, 3).map((img, idx) => (
+                                                        <img
+                                                            key={idx}
+                                                            src={`${API_BASE}${img.url}`}
+                                                            alt="Disaster"
+                                                            className="w-10 h-10 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition"
+                                                            onClick={() => window.open(`${API_BASE}${img.url}`, '_blank')}
+                                                        />
+                                                    ))}
+                                                    {d.images.length > 3 && (
+                                                        <span className="flex items-center justify-center w-10 h-10 text-xs text-slate-500 bg-slate-100 rounded-lg">
+                                                            +{d.images.length - 3}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-400">—</span>
+                                            )}
                                         </td>
 
                                         {/* Actions */}

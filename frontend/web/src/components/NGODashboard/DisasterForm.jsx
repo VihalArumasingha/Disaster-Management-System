@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { X, Image as ImageIcon } from 'lucide-react'
 import api from '../../services/api'
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000'
+
 const severityOptions = ['Low', 'Medium', 'High', 'Critical']
 
 export default function DisasterForm() {
@@ -52,7 +54,7 @@ export default function DisasterForm() {
                     data.warning.images.forEach((img, index) => {
                         if (index < 4) {
                             loadedImages[index] = img
-                            loadedPreviews[index] = img.url
+                            loadedPreviews[index] = img.url.startsWith('http') ? img.url : `${API_BASE}${img.url}`
                         }
                     })
                     setImages(loadedImages)

@@ -1,5 +1,8 @@
 import Warning from '../../../models/Warning.js'
 import TargetArea from '../../../models/TargetArea.js'
+import { v2 as cloudinary } from 'cloudinary'
+import fs from 'fs'
+import path from 'path'
 
 export const getDisasters = async (req, res, next) => {
     try {
@@ -17,13 +20,16 @@ export const getDisasters = async (req, res, next) => {
             ]
         }
 
+        console.log('Fetching disasters with filter:', filter)
         const warnings = await Warning.find(filter)
             .populate('targetAreaIds', 'name geometry')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 })
 
+        console.log('Found warnings:', warnings.length)
         res.json({ success: true, warnings })
     } catch (error) {
+        console.error('Error in getDisasters:', error)
         next(error)
     }
 }
@@ -50,6 +56,10 @@ export const getDisasterById = async (req, res, next) => {
 
 export const createDisaster = async (req, res, next) => {
     try {
+        console.log('=== CREATE DISASTER START ===')
+        console.log('Request body:', req.body)
+        console.log('Request files:', req.files)
+
         const {
             title,
             city,
@@ -81,10 +91,12 @@ export const createDisaster = async (req, res, next) => {
         }
 
         // Process uploaded images
+        console.log('Uploaded files:', req.files ? req.files.length : 0)
         const images = (req.files || []).map(file => ({
-            url: `/uploads/disasters/${file.filename}`,
-            filename: file.filename
+            url: file.path,
+            public_id: file.filename
         }))
+        console.log('Image metadata to save:', images)
 
         const warning = await Warning.create({
             title,
@@ -105,12 +117,19 @@ export const createDisaster = async (req, res, next) => {
             status: 'draft'
         })
 
+        console.log('Disaster saved to MongoDB with ID:', warning._id)
+        console.log('Images in saved document:', warning.images)
+
         const populatedWarning = await Warning.findById(warning._id)
             .populate('targetAreaIds', 'name geometry')
             .populate('createdBy', 'name email')
 
         res.status(201).json({ success: true, warning: populatedWarning })
     } catch (error) {
+        console.error('=== CREATE DISASTER ERROR ===')
+        console.error('Error name:', error.name)
+        console.error('Error message:', error.message)
+        console.error('Error stack:', error.stack)
         next(error)
     }
 }
@@ -158,13 +177,15 @@ export const updateDisaster = async (req, res, next) => {
         }
 
         // Process uploaded images (add to existing images)
+        console.log('Update - Uploaded files:', req.files ? req.files.length : 0)
         let images = warning.images || []
         if (req.files && req.files.length > 0) {
             const newImages = req.files.map(file => ({
-                url: `/uploads/disasters/${file.filename}`,
-                filename: file.filename
+                url: file.path,
+                public_id: file.filename
             }))
             images = [...images, ...newImages]
+            console.log('Updated image metadata:', images)
         }
 
         const updates = {}
@@ -208,12 +229,17 @@ export const deleteDisaster = async (req, res, next) => {
             })
         }
 
-        // Only allow deleting draft warnings
-        if (warning.status !== 'draft') {
-            return res.status(400).json({
-                success: false,
-                message: 'Only draft disasters can be deleted'
-            })
+        // Delete images from Cloudinary
+        if (warning.images && warning.images.length > 0) {
+            const publicIds = warning.images.map(img => img.public_id).filter(Boolean)
+            if (publicIds.length > 0) {
+                try {
+                    await cloudinary.api.delete_resources(publicIds)
+                    console.log(`Deleted ${publicIds.length} images from Cloudinary`)
+                } catch (cloudErr) {
+                    console.error('Failed to delete images from Cloudinary:', cloudErr.message)
+                }
+            }
         }
 
         await Warning.findByIdAndDelete(req.params.disasterId)
