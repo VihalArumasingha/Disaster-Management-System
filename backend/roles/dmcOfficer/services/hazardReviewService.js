@@ -8,7 +8,7 @@ import {
 } from '../../citizen/services/hazardPriorityService.js'
 
 import {
-    prepareEscalationHandoff
+    evaluateWarningEscalation
 } from './warningEscalationService.js'
 
 export const getHazardReviewQueue = async () => {
@@ -17,7 +17,7 @@ export const getHazardReviewQueue = async () => {
     })
         .populate(
             'reportIds',
-            'reporterId hazardType description location capturedAt submittedAt status verification'
+            'reporterId hazardType description location capturedAt submittedAt status verification photo'
         )
         .sort({
             priorityScore: -1,
@@ -41,33 +41,35 @@ export const getHazardReviewCluster = async (
     return ReportCluster.findById(clusterId)
         .populate(
             'reportIds',
-            'reporterId hazardType description location capturedAt submittedAt status verification'
+            'reporterId hazardType description location capturedAt submittedAt status verification photo'
         )
 }
 
 const recalculateCluster = async (
     clusterId
 ) => {
-    const cluster = await ReportCluster.findById(
-        clusterId
-    )
+    const cluster =
+        await ReportCluster.findById(clusterId)
 
     if (!cluster) {
         return null
     }
 
-    const activeReports = await HazardReport.find({
-        _id: {
-            $in: cluster.reportIds
-        },
-        status: {
-            $ne: 'rejected'
-        }
-    }).select(
-        'capturedAt'
-    )
+    const activeReports =
+        await HazardReport.find({
+            _id: {
+                $in: cluster.reportIds
+            },
 
-    cluster.reportCount = activeReports.length
+            status: {
+                $ne: 'rejected'
+            }
+        }).select(
+            'capturedAt'
+        )
+
+    cluster.reportCount =
+        activeReports.length
 
     if (activeReports.length === 0) {
         cluster.priorityScore = 0
@@ -79,21 +81,24 @@ const recalculateCluster = async (
         return cluster
     }
 
-    cluster.lastReportedAt = activeReports.reduce(
-        (latest, report) => (
-            report.capturedAt > latest
-                ? report.capturedAt
-                : latest
-        ),
-        activeReports[0].capturedAt
-    )
+    cluster.lastReportedAt =
+        activeReports.reduce(
+            (latest, report) => (
+                report.capturedAt > latest
+                    ? report.capturedAt
+                    : latest
+            ),
+            activeReports[0].capturedAt
+        )
 
-    const priority = calculateClusterPriority(
-        cluster
-    )
+    const priority =
+        calculateClusterPriority(cluster)
 
-    cluster.priorityScore = priority.priorityScore
-    cluster.priorityLevel = priority.priorityLevel
+    cluster.priorityScore =
+        priority.priorityScore
+
+    cluster.priorityLevel =
+        priority.priorityLevel
 
     await cluster.save()
 
@@ -104,9 +109,8 @@ export const verifyHazardReport = async (
     reportId,
     officerId
 ) => {
-    const report = await HazardReport.findById(
-        reportId
-    )
+    const report =
+        await HazardReport.findById(reportId)
 
     if (!report) {
         return null
@@ -131,14 +135,15 @@ export const verifyHazardReport = async (
 
     await report.save()
 
-    const cluster = await recalculateCluster(
-        report.clusterId
-    )
+    const cluster =
+        await recalculateCluster(
+            report.clusterId
+        )
 
     const escalation =
-    await prepareEscalationHandoff(
-        report.clusterId
-    )
+        await evaluateWarningEscalation(
+            report.clusterId
+        )
 
     return {
         report,
@@ -152,9 +157,8 @@ export const rejectHazardReport = async (
     officerId,
     reason
 ) => {
-    const report = await HazardReport.findById(
-        reportId
-    )
+    const report =
+        await HazardReport.findById(reportId)
 
     if (!report) {
         return null
@@ -180,9 +184,10 @@ export const rejectHazardReport = async (
 
     await report.save()
 
-    const cluster = await recalculateCluster(
-        report.clusterId
-    )
+    const cluster =
+        await recalculateCluster(
+            report.clusterId
+        )
 
     return {
         report,

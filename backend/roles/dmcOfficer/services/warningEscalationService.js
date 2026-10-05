@@ -1,5 +1,6 @@
 import HazardReport from '../../../models/HazardReport.js'
 import ReportCluster from '../../../models/ReportCluster.js'
+import HazardEscalation from '../../../models/HazardEscalation.js'
 
 const MIN_VERIFIED_REPORTS = Number(
     process.env.HAZARD_ESCALATION_MIN_VERIFIED_REPORTS || 1
@@ -17,28 +18,31 @@ const PRIORITY_RANK = {
     critical: 4
 }
 
-const getVerifiedReportCount = async (cluster) => {
-    return HazardReport.countDocuments({
+const getVerifiedReports = async (cluster) => {
+    return HazardReport.find({
         _id: {
             $in: cluster.reportIds
         },
         status: 'verified'
     })
+        .select('_id')
+        .lean()
 }
 
 export const evaluateWarningEscalation = async (
     clusterId
 ) => {
-    const cluster = await ReportCluster.findById(
-        clusterId
-    )
+    const cluster = await ReportCluster.findById(clusterId)
 
     if (!cluster) {
         return null
     }
 
+    const verifiedReports =
+        await getVerifiedReports(cluster)
+
     const verifiedReportCount =
-        await getVerifiedReportCount(cluster)
+        verifiedReports.length
 
     const hasEnoughVerifiedReports =
         verifiedReportCount >= MIN_VERIFIED_REPORTS
@@ -51,7 +55,8 @@ export const evaluateWarningEscalation = async (
         hasEnoughVerifiedReports
         && hasRequiredPriority
 
-    let reason = 'Cluster does not meet escalation criteria'
+    let reason =
+        'Cluster does not meet escalation criteria'
 
     if (shouldEscalate) {
         reason =
@@ -66,18 +71,18 @@ export const evaluateWarningEscalation = async (
 
     return {
         shouldEscalate,
-
         reason,
 
         clusterId: cluster._id,
-
         hazardType: cluster.hazardType,
 
         priorityScore: cluster.priorityScore,
-
         priorityLevel: cluster.priorityLevel,
 
         verifiedReportCount,
+
+        verifiedReportIds:
+            verifiedReports.map(report => report._id),
 
         escalationCriteria: {
             minimumVerifiedReports:
@@ -89,8 +94,16 @@ export const evaluateWarningEscalation = async (
     }
 }
 
-export const prepareEscalationHandoff = async (
-    clusterId
+/*
+ * Creates the actual persistent handoff from
+ * DMC Officer → Duty Officer.
+ *
+ * This does NOT create a Warning.
+ * This does NOT send notifications.
+ */
+export const createEscalationHandoff = async (
+    clusterId,
+    officerId
 ) => {
     const evaluation =
         await evaluateWarningEscalation(clusterId)
@@ -99,26 +112,102 @@ export const prepareEscalationHandoff = async (
         return null
     }
 
-    return {
-        ...evaluation,
+    if (!evaluation.shouldEscalate) {
+        const error = new Error(
+            evaluation.reason
+        )
 
-        source: 'hazard report review',
+        error.statusCode = 400
 
-        target: 'warning workflow',
-
-        handoffStatus: evaluation.shouldEscalate
-            ? 'ready'
-            : 'not_required',
-
-        boundary: {
-            createsWarnings: false,
-            sendsNotifications: false,
-            performsDutyOfficerWorkflow: false
-        }
+        throw error
     }
+
+    const existing =
+        await HazardEscalation.findOne({
+            clusterId,
+            status: 'pending_duty_verification'
+        })
+
+    if (existing) {
+        return existing
+            .populate([
+                {
+                    path: 'clusterId'
+                },
+                {
+                    path: 'verifiedReportIds'
+                },
+                {
+                    path: 'escalatedBy',
+                    select: 'name email role'
+                }
+            ])
+    }
+
+    const escalation =
+        await HazardEscalation.create({
+            clusterId: evaluation.clusterId,
+
+            hazardType:
+                evaluation.hazardType,
+
+            priorityScore:
+                evaluation.priorityScore,
+
+            priorityLevel:
+                evaluation.priorityLevel,
+
+            verifiedReportIds:
+                evaluation.verifiedReportIds,
+
+            verifiedReportCount:
+                evaluation.verifiedReportCount,
+
+            escalatedBy:
+                officerId,
+
+            escalatedAt:
+                new Date(),
+
+            status:
+                'pending_duty_verification'
+        })
+
+    return escalation
+        .populate([
+            {
+                path: 'clusterId'
+            },
+            {
+                path: 'verifiedReportIds'
+            },
+            {
+                path: 'escalatedBy',
+                select: 'name email role'
+            }
+        ])
+}
+
+export const getEscalationByCluster = async (
+    clusterId
+) => {
+    return HazardEscalation.findOne({
+        clusterId
+    })
+        .populate(
+            'clusterId'
+        )
+        .populate(
+            'verifiedReportIds'
+        )
+        .populate(
+            'escalatedBy',
+            'name email role'
+        )
 }
 
 export default {
     evaluateWarningEscalation,
-    prepareEscalationHandoff
+    createEscalationHandoff,
+    getEscalationByCluster
 }
