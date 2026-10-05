@@ -4,6 +4,7 @@ import {
     AlertTriangle,
     Bell,
     ChevronDown,
+    ClipboardList,
     LayoutDashboard,
     LogOut,
     Map,
@@ -101,6 +102,9 @@ function DmcOfficerLayout() {
                     </NavLink>
                     <NavLink to="/dmcofficer/escalated-reports" className={linkClass} onClick={closeMobile}>
                         <AlertTriangle size={18} /> Escalated Reports
+                    </NavLink>
+                    <NavLink to="/dmcofficer/hazard-reviews" className={linkClass} onClick={closeMobile}>
+                        <ClipboardList size={18} /> Report Clusters
                     </NavLink>
 
                     <button
