@@ -1,27 +1,41 @@
 import {
     AlertTriangle,
+    ArrowLeft,
+    ArrowUp,
     Bell,
     ChevronRight,
+    CircleCheck,
     ClipboardPlus,
     Clock3,
     Heart,
+    Hospital,
     House,
+    LifeBuoy,
     LogOut,
     Map,
     MapPin,
+    Megaphone,
+    RefreshCw,
     ShieldCheck,
     UserRound
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from './authContext'
 import { CITIZEN_ROLE } from './constants/roles'
 import api from './services/api'
+import NearbyHazardsPanel from './NearbyHazardsPanel'
+import WarningMap from './WarningMap'
 
 const navigation = [
     { label: 'Home', path: '/dashboard', icon: House },
     { label: 'Map', path: '/map', icon: Map },
-    { label: 'Report', path: '/report', icon: ClipboardPlus, primary: true },
+    {
+        label: 'Report',
+        path: '/report-hazard',
+        icon: ClipboardPlus,
+        primary: true
+    },
     { label: 'Alerts', path: '/alerts', icon: Bell },
     { label: 'Profile', path: '/profile', icon: UserRound }
 ]
@@ -35,203 +49,445 @@ const severityStyles = {
 
 const greetingForTime = () => {
     const hour = new Date().getHours()
+
     if (hour < 12) return 'Good morning'
     if (hour < 18) return 'Good afternoon'
+
     return 'Good evening'
 }
 
 const formatIssuedAt = (date) => {
     if (!date) return 'Recently issued'
+
     const parsed = new Date(date)
+
     return Number.isNaN(parsed.getTime())
         ? 'Recently issued'
-        : parsed.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+        : parsed.toLocaleString([], {
+              dateStyle: 'medium',
+              timeStyle: 'short'
+          })
 }
+
+const helpOptions = [
+    { label: 'Find help', detail: 'Emergency support', icon: LifeBuoy },
+    { label: 'Find shelters', detail: 'Nearby shelter options', icon: House },
+    { label: 'Nearby hospitals', detail: 'Medical care nearby', icon: Hospital },
+    { label: 'Safe locations', detail: 'Places to stay safe', icon: ShieldCheck }
+]
 
 function CitizenDashboard() {
     const { user, loading, signOut } = useAuth()
     const navigate = useNavigate()
     const { pathname } = useLocation()
+    const { warningId } = useParams()
     const [notifications, setNotifications] = useState([])
     const [warnings, setWarnings] = useState([])
+    const [latestCitizenWarning, setLatestCitizenWarning] = useState(null)
     const [loadError, setLoadError] = useState('')
     const [signOutError, setSignOutError] = useState('')
     const [loadingWarnings, setLoadingWarnings] = useState(true)
-
+    const [detailWarning, setDetailWarning] = useState(null)
+    const [loadedDetailId, setLoadedDetailId] = useState('')
+    const [detailError, setDetailError] = useState('')
     useEffect(() => {
-        if (!user || user.role !== CITIZEN_ROLE) return undefined
+        if (!user || user.role !== CITIZEN_ROLE) {
+            return undefined
+        }
+
         let active = true
 
         const loadCitizenData = async () => {
             try {
-                const [notificationResponse, warningResponse] = await Promise.all([
-                    api.get('/citizen/notifications'),
-                    api.get('/citizen/warnings/recent')
-                ])
+                const [notificationResponse, warningResponse, citizenWarningResponse] =
+                    await Promise.all([
+                        api.get('/citizen/notifications'),
+                        api.get('/citizen/warnings/recent'),
+                        api.get('/citizen/warnings/latest-for-me')
+                    ])
+
                 if (!active) return
-                setNotifications(notificationResponse.data.notifications)
-                setWarnings(warningResponse.data.warnings)
+
+                setNotifications(notificationResponse.data.notifications || [])
+                setWarnings(warningResponse.data.warnings || [])
+                setLatestCitizenWarning(citizenWarningResponse.data.warning)
                 setLoadError('')
             } catch (requestError) {
                 if (active) {
                     setLoadError(
-                        requestError.response?.data?.message
-                        || 'Could not load your latest alerts. Please try again.'
+                        requestError.response?.data?.message ||
+                            'Could not load your latest alerts. Please try again.'
                     )
                 }
             } finally {
-                if (active) setLoadingWarnings(false)
+                if (active) {
+                    setLoadingWarnings(false)
+                }
             }
         }
 
         loadCitizenData()
-        const refreshTimer = window.setInterval(loadCitizenData, 30000)
+
+        const refreshTimer = window.setInterval(
+            loadCitizenData,
+            30000
+        )
+
         return () => {
             active = false
             window.clearInterval(refreshTimer)
         }
     }, [user])
 
+    useEffect(() => {
+        if (!user || user.role !== CITIZEN_ROLE || !warningId) return undefined
+        let active = true
+        api.get(`/citizen/warnings/${warningId}`)
+            .then(({ data }) => {
+                if (active) {
+                    setDetailWarning(data.warning)
+                    setDetailError('')
+                }
+            })
+            .catch((requestError) => {
+                if (!active) return
+                setDetailWarning(null)
+                setDetailError(
+                    requestError.response?.data?.message
+                    || 'Could not load this warning. Please try again.'
+                )
+            })
+            .finally(() => {
+                if (active) setLoadedDetailId(warningId)
+            })
+        return () => {
+            active = false
+        }
+    }, [user, warningId])
+
     if (loading) {
-        return <div className="px-6 py-16 text-center text-slate-500">Loading your account…</div>
+        return (
+            <div className="px-6 py-16 text-center text-slate-500">
+                Loading your account…
+            </div>
+        )
     }
-    if (!user) return <Navigate to="/login" replace />
-    if (user.role !== CITIZEN_ROLE) return <Navigate to="/login" replace />
 
-    const unreadCount = notifications.filter((notification) => !notification.readAt).length
-    const activePath = pathname === '/' ? '/dashboard' : pathname
-    const firstName = user.name?.trim().split(/\s+/)[0] || 'there'
-    const latestWarning = warnings[0]
+    if (!user) {
+        return <Navigate to="/login" replace />
+    }
 
+    if (user.role !== CITIZEN_ROLE) {
+        return <Navigate to="/login" replace />
+    }
+
+    const unreadCount = notifications.filter(
+        (notification) => !notification.readAt
+    ).length
+
+    const activePath =
+        pathname === '/' ? '/dashboard' : pathname
+
+    const firstName =
+        user.name?.trim().split(/\s+/)[0] || 'there'
+
+    const isWarningDetail = Boolean(warningId)
+    const loadingDetail = isWarningDetail && loadedDetailId !== warningId
     const handleSignOut = async () => {
         try {
             await signOut()
             navigate('/login', { replace: true })
         } catch {
-            setSignOutError('Could not sign out. Check your connection and try again.')
+            setSignOutError(
+                'Could not sign out. Check your connection and try again.'
+            )
         }
     }
 
     const markRead = async (notificationId) => {
         try {
-            const { data } = await api.patch(`/citizen/notifications/${notificationId}/read`)
-            setNotifications((current) => current.map((notification) => (
-                notification._id === notificationId ? data.notification : notification
-            )))
+            const { data } = await api.patch(
+                `/citizen/notifications/${notificationId}/read`
+            )
+
+            setNotifications((current) =>
+                current.map((notification) =>
+                    notification._id === notificationId
+                        ? data.notification
+                        : notification
+                )
+            )
         } catch (requestError) {
             setLoadError(
-                requestError.response?.data?.message
-                || 'Could not update this alert. Please try again.'
+                requestError.response?.data?.message ||
+                    'Could not update this alert. Please try again.'
             )
         }
     }
 
     const renderHome = () => (
         <>
+            {/* Greeting */}
             <section className="px-5 pb-5 pt-7">
-                <p className="text-sm font-medium text-slate-500">{greetingForTime()},</p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">{firstName}</h1>
-                <p className="mt-1 text-sm text-slate-500">Here are the latest safety updates for you.</p>
+                <p className="text-sm font-medium text-slate-500">
+                    {greetingForTime()},
+                </p>
+
+                <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+                    {firstName}
+                </h1>
+
+                <p className="mt-1 text-sm text-slate-500">
+                    Here are the latest safety updates from across the country.
+                </p>
             </section>
 
+            {/* Primary Hazard Report Action */}
             <section className="px-5">
+                <button
+                    type="button"
+                    onClick={() => navigate('/report-hazard')}
+                    className="w-full rounded-2xl bg-teal-700 p-5 text-left text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99]"
+                >
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">
+                                Primary safety action
+                            </p>
+
+                            <h2 className="mt-1 text-xl font-bold">
+                                Report a hazard
+                            </h2>
+
+                            <p className="mt-2 text-sm leading-5 text-teal-50">
+                                Report a flood, landslide, road blockage or
+                                other hazard near you.
+                            </p>
+                        </div>
+
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15 text-2xl">
+                            ⚠
+                        </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between rounded-xl bg-white px-4 py-3 text-sm font-bold text-teal-800">
+                        <span>Start a report</span>
+                        <span className="text-lg">→</span>
+                    </div>
+                </button>
+            </section>
+
+            <section className="mb-5 px-5">
                 <div className="mb-3 flex items-center justify-between">
                     <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Stay informed</p>
-                        <h2 className="mt-1 text-lg font-bold text-slate-950">Latest warning</h2>
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                            For your area
+                        </p>
+
+                        <h2 className="mt-1 text-lg font-bold text-slate-950">
+                            Latest warning
+                        </h2>
                     </div>
+
                     <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
                         For your area
                     </span>
                 </div>
-
                 {loadingWarnings ? (
                     <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
                         Loading your latest warning…
                     </div>
-                ) : latestWarning ? (
+                ) : latestCitizenWarning ? (
                     <article className="overflow-hidden rounded-3xl border border-red-200 bg-white shadow-sm">
                         <div className="flex items-center gap-3 bg-red-700 px-5 py-4 text-white">
                             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15">
-                                <AlertTriangle size={21} aria-hidden="true" />
+                                <AlertTriangle
+                                    size={21}
+                                    aria-hidden="true"
+                                />
                             </span>
+
                             <div className="min-w-0 flex-1">
                                 <p className="text-xs font-semibold uppercase tracking-[0.13em] text-red-100">
                                     Official safety warning
                                 </p>
-                                <h3 className="mt-0.5 truncate text-lg font-bold">{latestWarning.title}</h3>
+
+                                <h3 className="mt-0.5 truncate text-lg font-bold">
+                                    {latestCitizenWarning.title}
+                                </h3>
                             </div>
+
                             <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-red-800">
-                                {latestWarning.severity}
+                                {latestCitizenWarning.severity}
                             </span>
                         </div>
+
                         <div className="p-5">
                             <div className="flex flex-wrap items-center gap-2">
-                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${severityStyles[latestWarning.severity] || 'bg-slate-100 text-slate-700'}`}>
-                                    {latestWarning.severity}
+                                <span
+                                    className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${
+                                        severityStyles[
+                                            latestCitizenWarning.severity
+                                        ] ||
+                                        'bg-slate-100 text-slate-700'
+                                    }`}
+                                >
+                                    {latestCitizenWarning.severity}
                                 </span>
+
                                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">
-                                    {String(latestWarning.hazardType || 'hazard').replaceAll('_', ' ')}
+                                    {String(
+                                        latestCitizenWarning.hazardType || 'hazard'
+                                    ).replaceAll('_', ' ')}
                                 </span>
                             </div>
 
                             <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                                {latestWarning.message}
+                                {latestCitizenWarning.message}
                             </p>
 
-                            {latestWarning.targetAreaIds?.length > 0 && (
+                            {latestCitizenWarning.targetAreaIds?.length > 0 && (
                                 <div className="mt-4 rounded-2xl bg-red-50 p-3.5">
                                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-red-800">
-                                        <MapPin size={15} aria-hidden="true" />
-                                        Affected area{latestWarning.targetAreaIds.length === 1 ? '' : 's'}
+                                        <MapPin
+                                            size={15}
+                                            aria-hidden="true"
+                                        />
+
+                                        Affected area
+                                        {latestCitizenWarning.targetAreaIds
+                                            .length === 1
+                                            ? ''
+                                            : 's'}
                                     </div>
+
                                     <div className="mt-2 flex flex-wrap gap-2">
-                                        {latestWarning.targetAreaIds.map((area) => (
-                                            <span
-                                                key={area._id || area}
-                                                className="rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                                            >
-                                                {area.name || 'Target area'}
-                                            </span>
-                                        ))}
+                                        {latestCitizenWarning.targetAreaIds.map(
+                                            (area) => (
+                                                <span
+                                                    key={
+                                                        area._id || area
+                                                    }
+                                                    className="rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                                                >
+                                                    {area.name ||
+                                                        'Target area'}
+                                                </span>
+                                            )
+                                        )}
+                                    </div>
+                                    <div className="mt-3 overflow-hidden rounded-xl border border-red-100">
+                                        <WarningMap areas={latestCitizenWarning.targetAreaIds} height={190} />
                                     </div>
                                 </div>
                             )}
-
-                            <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                                <Clock3 size={14} aria-hidden="true" />
-                                <span>Issued {formatIssuedAt(latestWarning.issuedAt || latestWarning.createdAt)}</span>
+                            <div className="mt-4 space-y-1 text-xs text-slate-500">
+                                <p>Issued {formatIssuedAt(latestCitizenWarning.issuedAt || latestCitizenWarning.createdAt)}</p>
+                                {latestCitizenWarning.issuedBy?.name && <p>Issued by {latestCitizenWarning.issuedBy.name}</p>}
+                                {latestCitizenWarning.resolvedBy?.name && <p>Resolved by {latestCitizenWarning.resolvedBy.name}</p>}
                             </div>
+
                             <Link
-                                to="/alerts"
+                                to={`/warnings/${latestCitizenWarning._id}`}
                                 className="mt-5 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-800"
                             >
-                                View all alerts
-                                <ChevronRight size={17} aria-hidden="true" />
+                                View warning <ChevronRight size={17} aria-hidden="true" />
                             </Link>
                         </div>
                     </article>
                 ) : (
-                    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-                                <ShieldCheck size={21} aria-hidden="true" />
-                            </span>
-                            <div>
-                                <h3 className="font-bold text-slate-900">You’re all caught up</h3>
-                                <p className="mt-1 text-sm text-slate-600">There are no recent warnings for your registered location.</p>
-                            </div>
-                        </div>
+                    <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
+                        There are no recent warnings for your registered areas.
                     </div>
                 )}
             </section>
 
+            <NearbyHazardsPanel />
+
+            <section className="mt-6 px-5">
+                <h2 className="mb-3 text-lg font-bold text-slate-950">Get help nearby</h2>
+                <div className="grid grid-cols-2 gap-3">
+                    {helpOptions.map(({ label, detail, icon: Icon }) => (
+                        <button
+                            key={label}
+                            type="button"
+                            className="min-h-[130px] rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-teal-200 hover:shadow-md active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                        >
+                            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-800">
+                                <Icon size={21} aria-hidden="true" />
+                            </span>
+                            <span className="mt-3 block text-sm font-semibold text-slate-950">{label}</span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-600">{detail}</span>
+                        </button>
+                    ))}
+                </div>
+            </section>
+
+            <section className="mx-5 mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between px-4 py-4">
+                    <h2 className="text-lg font-bold text-slate-950">Recent warnings</h2>
+                    <span className="text-xs font-medium text-slate-500">Across the country</span>
+                </div>
+                {loadingWarnings ? (
+                    <p className="border-t border-slate-200 px-4 py-5 text-sm text-slate-500">Loading recent warnings…</p>
+                ) : warnings.length === 0 ? (
+                    <p className="border-t border-slate-200 px-4 py-5 text-sm text-slate-600">There are no recent official warnings.</p>
+                ) : (
+                    <div>
+                        {warnings.map((warning) => {
+                            const areaNames = warning.targetAreaIds
+                                ?.map((area) => area.name)
+                                .filter(Boolean)
+                            const location = areaNames?.length ? areaNames.join(', ') : 'Countrywide'
+                            const issuedAt = warning.issuedAt || warning.createdAt
+                            const timestamp = issuedAt
+                                ? new Date(issuedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                                : 'Recently'
+                            const deliveryFailed = warning.status === 'delivery_failed'
+                            const resolved = Boolean(warning.resolvedAt)
+
+                            return (
+                                <Link
+                                    key={warning._id}
+                                    to={`/warnings/${warning._id}`}
+                                    className="flex min-h-[76px] items-center gap-3 border-t border-slate-200 px-4 py-3 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700"
+                                >
+                                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${warning.severity === 'emergency' || warning.severity === 'warning' ? 'bg-red-700 text-white' : 'bg-amber-100 text-amber-900'}`}>
+                                        <AlertTriangle size={19} aria-hidden="true" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold text-slate-950">{warning.title}</span>
+                                        <span className="mt-0.5 block truncate text-xs text-slate-600">{location} · {timestamp}</span>
+                                        <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${severityStyles[warning.severity] || 'bg-slate-100 text-slate-700'}`}>
+                                            {warning.severity}
+                                        </span>
+                                        <span className={`ml-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${resolved ? 'bg-emerald-50 text-emerald-800' : deliveryFailed ? 'bg-amber-50 text-amber-800' : 'bg-blue-50 text-blue-800'}`}>
+                                            {resolved ? 'Resolved' : deliveryFailed ? 'Delivery issue' : 'Active'}
+                                        </span>
+                                    </span>
+                                    <ChevronRight size={19} className="shrink-0 text-slate-500" aria-hidden="true" />
+                                </Link>
+                            )
+                        })}
+                    </div>
+                )}
+            </section>
+
+            {/* Notification summary */}
             <section className="mt-7 px-5 pb-5">
                 <div className="rounded-2xl bg-blue-50 p-4">
                     <div className="flex items-start gap-3">
-                        <ShieldCheck className="mt-0.5 shrink-0 text-blue-700" size={19} aria-hidden="true" />
+                        <ShieldCheck
+                            className="mt-0.5 shrink-0 text-blue-700"
+                            size={19}
+                            aria-hidden="true"
+                        />
+
                         <p className="text-sm leading-5 text-blue-950">
-                            Keep notifications enabled so you can receive important safety updates.
+                            You have {unreadCount} unread notification
+                            {unreadCount === 1 ? '' : 's'}. Keep notifications
+                            enabled so you can receive important safety
+                            updates.
                         </p>
                     </div>
                 </div>
@@ -241,35 +497,81 @@ function CitizenDashboard() {
 
     const renderAlerts = () => (
         <section className="px-5 pb-5 pt-7">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Your updates</p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-950">Alerts</h1>
-            <p className="mt-1 text-sm text-slate-500">Official warnings and safety updates for your area.</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                Your updates
+            </p>
+
+            <h1 className="mt-1 text-2xl font-bold text-slate-950">
+                Alerts
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-500">
+                Official warnings and safety updates for your area.
+            </p>
+
             {warnings.length > 0 && (
                 <div className="mt-5">
-                    <h2 className="mb-3 text-sm font-bold text-slate-800">Recent warnings</h2>
+                    <h2 className="mb-3 text-sm font-bold text-slate-800">
+                        Recent warnings
+                    </h2>
+
                     <div className="space-y-3">
                         {warnings.map((warning) => (
-                            <article key={warning._id} className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm">
+                            <article
+                                key={warning._id}
+                                className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm"
+                            >
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
                                         <p className="text-xs font-bold uppercase text-red-700">
-                                            {warning.severity} · {warning.hazardType}
+                                            {warning.severity} ·{' '}
+                                            {warning.hazardType}
                                         </p>
-                                        <h3 className="mt-1 font-semibold text-slate-900">{warning.title}</h3>
+
+                                        <h3 className="mt-1 font-semibold text-slate-900">
+                                            {warning.title}
+                                        </h3>
                                     </div>
-                                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${severityStyles[warning.severity] || 'bg-slate-100 text-slate-700'}`}>
+
+                                    <span
+                                        className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${
+                                            severityStyles[
+                                                warning.severity
+                                            ] ||
+                                            'bg-slate-100 text-slate-700'
+                                        }`}
+                                    >
                                         {warning.severity}
                                     </span>
                                 </div>
-                                <p className="mt-2 whitespace-pre-wrap text-sm leading-5 text-slate-700">{warning.message}</p>
+
+                                <p className="mt-2 whitespace-pre-wrap text-sm leading-5 text-slate-700">
+                                    {warning.message}
+                                </p>
+
                                 {warning.targetAreaIds?.length > 0 && (
                                     <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-600">
-                                        <MapPin size={13} aria-hidden="true" />
-                                        {warning.targetAreaIds.map((area) => area.name || 'Target area').join(', ')}
+                                        <MapPin
+                                            size={13}
+                                            aria-hidden="true"
+                                        />
+
+                                        {warning.targetAreaIds
+                                            .map(
+                                                (area) =>
+                                                    area.name ||
+                                                    'Target area'
+                                            )
+                                            .join(', ')}
                                     </p>
                                 )}
+
                                 <p className="mt-3 text-xs text-slate-500">
-                                    Issued {formatIssuedAt(warning.issuedAt || warning.createdAt)}
+                                    Issued{' '}
+                                    {formatIssuedAt(
+                                        warning.issuedAt ||
+                                            warning.createdAt
+                                    )}
                                 </p>
                             </article>
                         ))}
@@ -277,37 +579,68 @@ function CitizenDashboard() {
                 </div>
             )}
 
-            <h2 className="mb-3 mt-6 text-sm font-bold text-slate-800">In-app notifications</h2>
+            <h2 className="mb-3 mt-6 text-sm font-bold text-slate-800">
+                In-app notifications
+            </h2>
+
             {notifications.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-                    No notifications yet. New safety updates will appear here.
+                    No notifications yet. New safety updates will appear
+                    here.
                 </div>
             ) : (
                 <div className="space-y-3">
                     {notifications.map((notification) => (
                         <article
                             key={notification._id}
-                            className={`rounded-2xl border p-4 ${notification.readAt ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50'}`}
+                            className={`overflow-hidden rounded-3xl border shadow-sm ${notification.readAt ? 'border-slate-200 bg-white' : 'border-red-200 bg-white'}`}
                         >
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-wide text-red-700">
-                                        {notification.severity} · {notification.hazardType}
-                                    </p>
-                                    <h3 className="mt-1 font-semibold text-slate-900">{notification.title}</h3>
+                            <Link to={`/warnings/${notification.warningId}`} className="block">
+                                <div className="flex items-center gap-3 bg-red-700 px-4 py-3.5 text-white">
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15">
+                                        <AlertTriangle size={18} aria-hidden="true" />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-red-100">
+                                            Official safety notification
+                                        </p>
+                                        <h2 className="truncate text-base font-bold">{notification.title}</h2>
+                                    </div>
+                                    <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase text-red-800">
+                                        {notification.severity}
+                                    </span>
                                 </div>
+                                <div className="p-4">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${severityStyles[notification.severity] || 'bg-slate-100 text-slate-700'}`}>
+                                            {notification.severity}
+                                        </span>
+                                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">
+                                            {String(notification.hazardType || 'hazard').replaceAll('_', ' ')}
+                                        </span>
+                                        {!notification.readAt && (
+                                            <span className="ml-auto rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase text-blue-800">
+                                                New
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{notification.message}</p>
+                                </div>
+                            </Link>
+                            <div className="mx-4 flex items-center justify-between gap-3 border-t border-slate-100 py-3">
+                                <p className="text-xs text-slate-500">{formatIssuedAt(notification.createdAt)}</p>
                                 {!notification.readAt && (
                                     <button
                                         type="button"
-                                        onClick={() => markRead(notification._id)}
+                                        onClick={() =>
+                                            markRead(notification._id)
+                                        }
                                         className="shrink-0 text-xs font-semibold text-blue-700 underline"
                                     >
                                         Mark read
                                     </button>
                                 )}
                             </div>
-                            <p className="mt-2 whitespace-pre-wrap text-sm leading-5 text-slate-700">{notification.message}</p>
-                            <p className="mt-3 text-xs text-slate-500">{formatIssuedAt(notification.createdAt)}</p>
                         </article>
                     ))}
                 </div>
@@ -315,24 +648,189 @@ function CitizenDashboard() {
         </section>
     )
 
+    const renderWarningDetail = () => {
+        if (loadingDetail) {
+            return <p className="px-5 py-10 text-center text-sm text-slate-500">Loading warning details…</p>
+        }
+        if (detailError) {
+            return (
+                <section className="px-5 pb-5 pt-7">
+                    <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700">
+                        <ArrowLeft size={17} /> Back to Home
+                    </Link>
+                    <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{detailError}</p>
+                </section>
+            )
+        }
+        if (!detailWarning) return null
+        const timeline = [...(detailWarning.updates || [])].sort(
+            (first, second) => new Date(second.createdAt) - new Date(first.createdAt)
+        )
+
+        return (
+            <section className="px-5 pb-6 pt-5">
+                <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700">
+                    <ArrowLeft size={17} /> Back to Home
+                </Link>
+                <article className="mt-4 overflow-hidden rounded-3xl border border-red-200 bg-white shadow-sm">
+                    <div className="bg-red-700 px-5 py-5 text-white">
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-red-100">Official safety warning</p>
+                        <h1 className="mt-2 text-xl font-bold leading-7">{detailWarning.title}</h1>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold uppercase text-red-800">
+                                {detailWarning.severity}
+                            </span>
+                            <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold capitalize text-white">
+                                {String(detailWarning.hazardType || 'hazard').replaceAll('_', ' ')}
+                            </span>
+                            {detailWarning.resolvedAt && (
+                                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                                    Resolved
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="space-y-6 p-5">
+                        <section>
+                            <h2 className="text-lg font-bold text-slate-950">Disaster overview</h2>
+                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{detailWarning.message}</p>
+                        </section>
+
+                        <section>
+                            <div className="flex items-center gap-2">
+                                <MapPin size={18} className="text-red-700" aria-hidden="true" />
+                                <h2 className="text-lg font-bold text-slate-950">Affected areas</h2>
+                            </div>
+                            <p className="mt-1 text-sm text-slate-600">
+                                The highlighted boundaries show the areas covered by this warning.
+                            </p>
+                            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
+                                <WarningMap areas={detailWarning.targetAreaIds || []} height={280} />
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {(detailWarning.targetAreaIds || []).map((area) => (
+                                    <span key={area._id} className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-800">
+                                        {area.name}
+                                    </span>
+                                ))}
+                            </div>
+                        </section>
+
+                        <section>
+                            <h2 className="text-lg font-bold text-slate-950">What to do</h2>
+                            {detailWarning.actionSteps?.length ? (
+                                <ol className="mt-3 space-y-3">
+                                    {detailWarning.actionSteps.map((step, index) => (
+                                        <li key={`${index}-${step}`} className="flex items-start gap-3 text-sm leading-6 text-slate-700">
+                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+                                                {index + 1}
+                                            </span>
+                                            <span className="pt-0.5">{step}</span>
+                                        </li>
+                                    ))}
+                                </ol>
+                            ) : (
+                                <p className="mt-2 text-sm leading-6 text-slate-600">
+                                    Follow instructions from local emergency services and monitor this page for updates.
+                                </p>
+                            )}
+                        </section>
+
+                        <section>
+                            <div className="flex items-center gap-2">
+                                <RefreshCw size={18} className="text-blue-700" aria-hidden="true" />
+                                <h2 className="text-lg font-bold text-slate-950">Updates</h2>
+                            </div>
+                            {timeline.length === 0 ? (
+                                <p className="mt-3 text-sm text-slate-600">No updates have been posted for this warning.</p>
+                            ) : (
+                                <ol className="mt-4 space-y-0">
+                                    {timeline.map((update, index) => {
+                                        const UpdateIcon = update.type === 'issued'
+                                            ? Megaphone
+                                            : update.type === 'resolved'
+                                                ? CircleCheck
+                                            : update.type === 'severity'
+                                                ? ArrowUp
+                                                : update.type === 'area'
+                                                    ? RefreshCw
+                                                    : Megaphone
+                                        return (
+                                            <li key={update._id || `${update.title}-${update.createdAt}`} className="relative flex gap-3 pb-5 last:pb-0">
+                                                {index < timeline.length - 1 && (
+                                                    <span className="absolute left-[13px] top-8 h-[calc(100%-1.5rem)] w-px bg-slate-200" />
+                                                )}
+                                                <span className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${update.type === 'resolved' ? 'bg-emerald-100 text-emerald-800' : update.type === 'severity' ? 'bg-red-100 text-red-700' : update.type === 'issued' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                                                    <UpdateIcon size={14} aria-hidden="true" />
+                                                </span>
+                                                <div className="min-w-0 pt-0.5">
+                                                    <h3 className="text-sm font-semibold text-slate-900">{update.title}</h3>
+                                                    <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-slate-600">{update.message}</p>
+                                                    {update.affectedAreaIds?.length > 0 && (
+                                                        <p className="mt-1 text-xs text-slate-600">
+                                                            Affected areas: {update.affectedAreaIds.map((area) => area.name).join(', ')}
+                                                        </p>
+                                                    )}
+                                                    {update.severity && (
+                                                        <p className="mt-1 text-xs font-semibold capitalize text-red-700">
+                                                            Severity: {update.severity}
+                                                        </p>
+                                                    )}
+                                                    <p className="mt-1 text-xs text-slate-500">{formatIssuedAt(update.createdAt)}</p>
+                                                </div>
+                                            </li>
+                                        )
+                                    })}
+                                </ol>
+                            )}
+                        </section>
+
+                        <p className="border-t border-slate-100 pt-4 text-xs text-slate-500">
+                            Warning issued {formatIssuedAt(detailWarning.issuedAt || detailWarning.createdAt)}
+                            {detailWarning.issuedBy?.name && <> by {detailWarning.issuedBy.name}</>}
+                            {detailWarning.createdBy?.name && <> · Created by {detailWarning.createdBy.name}</>}
+                            {detailWarning.resolvedBy?.name && <> · Resolved by {detailWarning.resolvedBy.name}</>}
+                        </p>
+                    </div>
+                </article>
+            </section>
+        )
+    }
+
     const renderSection = () => {
+        if (isWarningDetail) return renderWarningDetail()
         if (activePath === '/dashboard') return renderHome()
+        if (activePath === '/map') return <NearbyHazardsPanel fullPage />
         if (activePath === '/alerts') return renderAlerts()
         if (activePath === '/profile') {
             return (
                 <section className="px-5 pb-5 pt-7">
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Account</p>
-                    <h1 className="mt-1 text-2xl font-bold text-slate-950">Your profile</h1>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                        Account
+                    </p>
+
+                    <h1 className="mt-1 text-2xl font-bold text-slate-950">
+                        Your profile
+                    </h1>
+
                     <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-lg font-bold text-blue-800">
                             {firstName.slice(0, 1).toUpperCase()}
                         </div>
-                        <h2 className="mt-4 text-lg font-bold text-slate-900">{user.name}</h2>
-                        <p className="mt-1 text-sm text-slate-600">{user.email}</p>
+
+                        <h2 className="mt-4 text-lg font-bold text-slate-900">
+                            {user.name}
+                        </h2>
+
+                        <p className="mt-1 text-sm text-slate-600">
+                            {user.email}
+                        </p>
+
                         <p className="mt-4 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold capitalize text-slate-700">
                             {user.role}
                         </p>
                     </div>
+
                     <button
                         type="button"
                         onClick={handleSignOut}
@@ -341,29 +839,91 @@ function CitizenDashboard() {
                         <LogOut size={17} aria-hidden="true" />
                         Sign out
                     </button>
-                    {signOutError && <p role="alert" className="mt-3 text-sm text-red-700">{signOutError}</p>}
+
+                    {signOutError && (
+                        <p
+                            role="alert"
+                            className="mt-3 text-sm text-red-700"
+                        >
+                            {signOutError}
+                        </p>
+                    )}
                 </section>
             )
         }
-        const isReport = activePath === '/report'
-        const Icon = isReport ? ClipboardPlus : Map
+
+        if (activePath === '/map') {
+            return (
+                <section className="px-5 pb-5 pt-7">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                        Citizen services
+                    </p>
+
+                    <h1 className="mt-1 text-2xl font-bold text-slate-950">
+                        Hazard map
+                    </h1>
+
+                    <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+                        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                            <Map size={25} aria-hidden="true" />
+                        </span>
+
+                        <h2 className="mt-4 font-bold text-slate-900">
+                            Map view is coming next
+                        </h2>
+
+                        <p className="mt-2 text-sm leading-5 text-slate-600">
+                            Your local hazard map and nearby risk information
+                            will be available here.
+                        </p>
+
+                        <Link
+                            to="/dashboard"
+                            className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-blue-700"
+                        >
+                            Back to Home
+                            <ChevronRight
+                                size={16}
+                                aria-hidden="true"
+                            />
+                        </Link>
+                    </div>
+                </section>
+            )
+        }
+
         return (
             <section className="px-5 pb-5 pt-7">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Citizen services</p>
-                <h1 className="mt-1 text-2xl font-bold text-slate-950">{isReport ? 'Report a hazard' : 'Hazard map'}</h1>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                    Citizen services
+                </p>
+
+                <h1 className="mt-1 text-2xl font-bold text-slate-950">
+                    {activePath === '/report-hazard'
+                        ? 'Report a hazard'
+                        : activePath.startsWith('/my-reports')
+                            ? 'My reports'
+                            : 'Citizen dashboard'}
+                </h1>
+
                 <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-                    <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-700">
-                        <Icon size={25} aria-hidden="true" />
-                    </span>
-                    <h2 className="mt-4 font-bold text-slate-900">{isReport ? 'Hazard reporting is coming next' : 'Map view is coming next'}</h2>
+                    <ShieldCheck
+                        className="mx-auto text-blue-700"
+                        size={30}
+                        aria-hidden="true"
+                    />
+
+                    <h2 className="mt-4 font-bold text-slate-900">
+                        Welcome back
+                    </h2>
+
                     <p className="mt-2 text-sm leading-5 text-slate-600">
-                        {isReport
-                            ? 'You will be able to send a hazard report to the response team from here.'
-                            : 'Your local hazard map and nearby risk information will be available here.'}
+                        {activePath === '/report-hazard'
+                            ? 'The hazard report page is not available yet.'
+                            : activePath.startsWith('/my-reports')
+                                ? 'Your submitted hazard reports will appear here.'
+                                : 'Use the navigation below to access citizen services.'}
                     </p>
-                    <Link to="/dashboard" className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-blue-700">
-                        Back to Home <ChevronRight size={16} aria-hidden="true" />
-                    </Link>
                 </div>
             </section>
         )
@@ -372,15 +932,29 @@ function CitizenDashboard() {
     return (
         <div className="mx-auto min-h-screen w-full max-w-md bg-slate-50 pb-[calc(6rem+env(safe-area-inset-bottom))] text-slate-900 shadow-xl">
             <header className="sticky top-0 z-20 flex h-[70px] items-center justify-between border-b border-slate-100 bg-white/95 px-5 backdrop-blur">
-                <Link to="/dashboard" className="flex items-center gap-2.5" aria-label="DMS home">
+                <Link
+                    to="/dashboard"
+                    className="flex items-center gap-2.5"
+                    aria-label="DMS home"
+                >
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-800 text-white">
-                        <ShieldCheck size={23} aria-hidden="true" />
+                        <ShieldCheck
+                            size={23}
+                            aria-hidden="true"
+                        />
                     </span>
+
                     <span>
-                        <span className="block text-base font-extrabold leading-5 tracking-tight text-slate-950">DMS</span>
-                        <span className="block text-[10px] font-medium leading-4 text-slate-500">Disaster Management</span>
+                        <span className="block text-base font-extrabold leading-5 tracking-tight text-slate-950">
+                            DMS
+                        </span>
+
+                        <span className="block text-[10px] font-medium leading-4 text-slate-500">
+                            Disaster Management
+                        </span>
                     </span>
                 </Link>
+
                 <div className="flex items-center gap-3">
                     <Link
                         to="/donation"
@@ -392,15 +966,23 @@ function CitizenDashboard() {
                     <Link
                         to="/alerts"
                         className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100"
-                        aria-label={unreadCount > 0 ? `${unreadCount} unread alerts` : 'Alerts'}
+                        aria-label={
+                            unreadCount > 0
+                                ? `${unreadCount} unread alerts`
+                                : 'Alerts'
+                        }
                     >
                         <Bell size={21} aria-hidden="true" />
+
                         {unreadCount > 0 && (
                             <span className="absolute right-1 top-0 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-                                {unreadCount > 9 ? '9+' : unreadCount}
+                                {unreadCount > 9
+                                    ? '9+'
+                                    : unreadCount}
                             </span>
                         )}
                     </Link>
+
                     <Link
                         to="/profile"
                         className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-800"
@@ -412,35 +994,99 @@ function CitizenDashboard() {
             </header>
 
             {loadError && (
-                <p role="alert" className="mx-5 mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                <p
+                    role="alert"
+                    className="mx-5 mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"
+                >
                     {loadError}
                 </p>
             )}
+
             {renderSection()}
 
             <nav
                 aria-label="Main navigation"
                 className="fixed bottom-0 left-1/2 z-30 grid h-[74px] w-full max-w-md -translate-x-1/2 grid-cols-5 border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(15,23,42,0.07)] backdrop-blur"
             >
-                {navigation.map(({ label, path, icon: Icon, primary }) => {
-                    const isActive = activePath === path
-                    return (
-                        <Link
-                            key={path}
-                            to={path}
-                            aria-current={isActive ? 'page' : undefined}
-                            className={`flex flex-col items-center justify-center gap-1 ${isActive ? 'text-blue-600' : 'text-slate-500'}`}
-                        >
-                            <span className="relative">
-                                <Icon size={21} strokeWidth={isActive ? 2.4 : 1.9} aria-hidden="true" />
-                                {label === 'Alerts' && unreadCount > 0 && (
-                                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-600 ring-2 ring-white" />
-                                )}
-                            </span>
-                            <span className={`text-[10px] ${isActive ? 'font-bold' : 'font-medium'}`}>{label}</span>
-                        </Link>
-                    )
-                })}
+                {navigation.map(
+                    ({ label, path, icon: Icon, primary }) => {
+                        const isActive = activePath === path
+
+                        if (primary) {
+                            return (
+                                <Link
+                                    key={path}
+                                    to={path}
+                                    aria-label={label}
+                                    className="flex flex-col items-center justify-center gap-1 text-slate-500"
+                                >
+                                    <span
+                                        className={`-mt-7 flex h-[54px] w-[54px] items-center justify-center rounded-full border-4 border-slate-50 bg-blue-800 text-white shadow-lg ${
+                                            isActive
+                                                ? 'ring-2 ring-blue-200'
+                                                : ''
+                                        }`}
+                                    >
+                                        <Icon
+                                            size={23}
+                                            aria-hidden="true"
+                                        />
+                                    </span>
+
+                                    <span
+                                        className={`text-[10px] font-semibold ${
+                                            isActive
+                                                ? 'text-blue-800'
+                                                : ''
+                                        }`}
+                                    >
+                                        {label}
+                                    </span>
+                                </Link>
+                            )
+                        }
+
+                        return (
+                            <Link
+                                key={path}
+                                to={path}
+                                aria-current={
+                                    isActive ? 'page' : undefined
+                                }
+                                className={`flex flex-col items-center justify-center gap-1 ${
+                                    isActive
+                                        ? 'text-blue-800'
+                                        : 'text-slate-500'
+                                }`}
+                            >
+                                <span className="relative">
+                                    <Icon
+                                        size={21}
+                                        strokeWidth={
+                                            isActive ? 2.4 : 1.9
+                                        }
+                                        aria-hidden="true"
+                                    />
+
+                                    {label === 'Alerts' &&
+                                        unreadCount > 0 && (
+                                            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-600 ring-2 ring-white" />
+                                        )}
+                                </span>
+
+                                <span
+                                    className={`text-[10px] ${
+                                        isActive
+                                            ? 'font-bold'
+                                            : 'font-medium'
+                                    }`}
+                                >
+                                    {label}
+                                </span>
+                            </Link>
+                        )
+                    }
+                )}
             </nav>
         </div>
     )

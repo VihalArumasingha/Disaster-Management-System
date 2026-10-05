@@ -4,7 +4,7 @@ const channelSchema = new mongoose.Schema(
     {
         status: {
             type: String,
-            enum: ['pending', 'sending', 'queued', 'sent', 'delivered', 'failed', 'unknown', 'not_required'],
+            enum: ['pending', 'sending', 'queued', 'dispatched', 'sent', 'delivered', 'failed', 'unknown', 'not_required'],
             default: 'pending'
         },
         providerMessageId: { type: String, default: '' },
@@ -39,6 +39,11 @@ const warningDeliverySchema = new mongoose.Schema(
 )
 
 warningDeliverySchema.index({ warningId: 1, recipientId: 1 }, { unique: true })
+warningDeliverySchema.index({
+    'sms.status': 1,
+    'sms.lastPolledAt': 1,
+    'sms.acceptedAt': 1
+})
 
 const WarningDelivery = mongoose.model('WarningDelivery', warningDeliverySchema)
 

@@ -11,6 +11,7 @@ const EscalatedReportsPage = lazy(() => import('../../roles/dmcOfficer/pages/Esc
 const WarningsPage = lazy(() => import('../../roles/dmcOfficer/pages/WarningsPage'))
 const CreateWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateWarningPage'))
 const ReviewWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/ReviewWarningPage'))
+const WarningUpdatePage = lazy(() => import('../../roles/dmcOfficer/pages/WarningUpdatePage'))
 const TargetAreasPage = lazy(() => import('../../roles/dmcOfficer/pages/TargetAreasPage'))
 const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateTargetAreaPage'))
 const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
@@ -40,6 +41,7 @@ function AppRoutes() {
                 <Route path="warnings/create" element={withLoading(<CreateWarningPage />)} />
                 <Route path="warnings/:warningId/edit" element={withLoading(<CreateWarningPage />)} />
                 <Route path="warnings/:warningId/review" element={withLoading(<ReviewWarningPage />)} />
+                <Route path="warnings/:warningId/update" element={withLoading(<WarningUpdatePage />)} />
                 <Route path="target-areas" element={withLoading(<TargetAreasPage />)} />
                 <Route path="target-areas/create" element={withLoading(<CreateTargetAreaPage />)} />
                 <Route path="profile" element={withLoading(<DmcProfilePage />)} />

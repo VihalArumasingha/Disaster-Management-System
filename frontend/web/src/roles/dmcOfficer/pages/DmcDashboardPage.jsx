@@ -59,7 +59,7 @@ function DmcDashboardPage() {
             <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">DMC operations</p>
                 <h1 className="mt-2 text-3xl font-bold text-slate-900">Dashboard</h1>
-                <p className="mt-2 text-slate-600">Monitor warnings, response areas, and citizen coverage.</p>
+                <p className="mt-2 text-slate-600">Shared DMC workspace for warnings, response areas, and citizen coverage.</p>
             </div>
             {error && (
                 <p role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">

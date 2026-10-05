@@ -10,7 +10,9 @@ import {
     listWarnings,
     previewTargetArea,
     previewWarningRecipients,
-    updateWarning
+    postWarningUpdate,
+    updateWarning,
+    resolveWarning
 } from '../services/dmcOfficerService.js'
 
 export const overview = async (req, res, next) => {
@@ -49,7 +51,14 @@ export const saveTargetArea = async (req, res, next) => {
 
 export const warnings = async (req, res, next) => {
     try {
-        res.json({ success: true, warnings: await listWarnings() })
+        const startedAt = Date.now()
+        const warningList = await listWarnings()
+        const durationMs = Date.now() - startedAt
+        res.set('Server-Timing', `warning-list;dur=${durationMs}`)
+        if (durationMs > 1500) {
+            console.warn(`Warning list query took ${durationMs}ms`)
+        }
+        res.json({ success: true, warnings: warningList })
     } catch (error) {
         next(error)
     }
@@ -73,6 +82,17 @@ export const editWarning = async (req, res, next) => {
     }
 }
 
+export const addWarningUpdate = async (req, res, next) => {
+    try {
+        res.json({
+            success: true,
+            ...(await postWarningUpdate(req.params.warningId, req.body, req.user._id))
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 export const reviewWarning = async (req, res, next) => {
     try {
         res.json({ success: true, ...(await getWarningForReview(req.params.warningId)) })
@@ -83,7 +103,17 @@ export const reviewWarning = async (req, res, next) => {
 
 export const issueWarningNow = async (req, res, next) => {
     try {
-        res.json({ success: true, ...(await issueWarning(req.params.warningId)) })
+        const result = await issueWarning(req.params.warningId, req.user._id)
+        res.status(202).json({ success: true, ...result })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const resolveWarningNow = async (req, res, next) => {
+    try {
+        const result = await resolveWarning(req.params.warningId, req.user._id)
+        res.json({ success: true, ...result })
     } catch (error) {
         next(error)
     }
