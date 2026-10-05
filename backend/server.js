@@ -1,6 +1,21 @@
+import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import fs from 'fs'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const envPath = path.join(__dirname, '.env')
+console.log('Loading .env from:', envPath)
+console.log('.env file exists:', fs.existsSync(envPath))
+
+dotenv.config({ path: envPath })
+
+console.log('After dotenv.config() - CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'Set' : 'Missing')
+
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
 import cookieParser from 'cookie-parser'
 
 import connectDB from './config/db.js'
@@ -22,8 +37,6 @@ import {
 import errorMiddleware from './middleware/errorHandling/errorMiddleware.js'
 import authenticate from './middleware/authentication/authMiddleware.js'
 import { getReportPhoto } from './roles/citizen/controllers/hazardReportController.js'
-
-dotenv.config()
 
 const app = express()
 

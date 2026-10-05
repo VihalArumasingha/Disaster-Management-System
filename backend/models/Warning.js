@@ -8,10 +8,41 @@ const warningSchema = new mongoose.Schema(
             trim: true,
             maxlength: 160
         },
+        city: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 100
+        },
+        summary: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 2000
+        },
+        topNeeds: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 500
+        },
+        accentColor: {
+            type: String,
+            default: '#16a34a',
+            trim: true
+        },
         severity: {
             type: String,
-            enum: ['advisory', 'watch', 'warning', 'emergency'],
-            required: true
+            enum: ['Low', 'Medium', 'High', 'Critical'],
+            default: 'Medium'
+        },
+        active: {
+            type: Boolean,
+            default: true
+        },
+        showOnDonationPage: {
+            type: Boolean,
+            default: true
         },
         hazardType: {
             type: String,
@@ -57,9 +88,19 @@ const warningSchema = new mongoose.Schema(
         },
         targetAreaIds: [{
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'TargetArea',
-            required: true
+            ref: 'TargetArea'
         }],
+        manualTargetAreas: {
+            type: [String],
+            default: []
+        },
+        images: {
+            type: [{
+                url: String,
+                public_id: String
+            }],
+            default: []
+        },
         recipientIds: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
@@ -103,6 +144,6 @@ const warningSchema = new mongoose.Schema(
 warningSchema.index({ createdAt: -1 })
 warningSchema.index({ recipientIds: 1, status: 1, issuedAt: -1 })
 
-const Warning = mongoose.model('Warning', warningSchema)
+const Warning = mongoose.model('Warning', warningSchema, 'activedisasters')
 
 export default Warning
