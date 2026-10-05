@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth'
 import CitizenDashboard from './CitizenDashboard'
 import MobileAuthPage from './MobileAuthPage'
+import DonationMobileView from './components/Donation/DonationMobile view'
 
 function App() {
     return (
@@ -16,6 +17,7 @@ function App() {
                     <Route path="/report" element={<CitizenDashboard />} />
                     <Route path="/alerts" element={<CitizenDashboard />} />
                     <Route path="/profile" element={<CitizenDashboard />} />
+                    <Route path="/donation" element={<DonationMobileView />} />
                     <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
             </AuthProvider>

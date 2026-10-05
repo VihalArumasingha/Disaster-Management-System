@@ -382,13 +382,13 @@ function CitizenDashboard() {
                     </span>
                 </Link>
                 <div className="flex items-center gap-3">
-                    <button
-                        type="button"
+                    <Link
+                        to="/donation"
                         className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-blue-600 transition"
                     >
                         <Heart size={16} aria-hidden="true" />
                         Support Disaster
-                    </button>
+                    </Link>
                     <Link
                         to="/alerts"
                         className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100"
