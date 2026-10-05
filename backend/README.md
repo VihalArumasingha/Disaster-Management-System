@@ -69,6 +69,10 @@ Configure these backend environment variables:
   `X-Signature` over the raw request body and processes events idempotently.
   For local development, TextBee requires a public HTTPS URL (a tunnel can
   expose the local API); localhost URLs are not reachable by TextBee.
+- The backend also polls TextBee's authenticated message history every 10
+  seconds for queued or unknown SMS batches and refreshes warning summaries.
+  This provides status updates without a webhook; configuring the webhook is
+  still recommended for faster updates and remains supported.
 - `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` for Brevo email fallback.
   `BREVO_SENDER_NAME` is optional.
 
@@ -83,6 +87,8 @@ page; successful channels are not sent again.
 Citizen in-app alerts are available
 from the authenticated `GET /api/citizen/notifications` endpoint and can be
 marked read with `PATCH /api/citizen/notifications/:notificationId/read`.
+Recent warnings addressed to the signed-in citizen are available from
+`GET /api/citizen/warnings/recent`.
 
 The map uses OpenStreetMap tiles as its base layer and optional OpenWeather
 precipitation, clouds, or temperature overlays. Configure `OPENWEATHER_KEY`

@@ -13,7 +13,8 @@ const channelSchema = new mongoose.Schema(
         attemptedAt: { type: Date, default: null },
         acceptedAt: { type: Date, default: null },
         sentAt: { type: Date, default: null },
-        deliveredAt: { type: Date, default: null }
+        deliveredAt: { type: Date, default: null },
+        lastPolledAt: { type: Date, default: null }
     },
     { _id: false }
 )

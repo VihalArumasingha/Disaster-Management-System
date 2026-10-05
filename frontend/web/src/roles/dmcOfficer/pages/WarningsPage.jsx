@@ -44,6 +44,11 @@ function WarningsPage() {
         }
     }, [])
 
+    const issuedWarning = warnings.find((warning) => (
+        warning._id === location.state?.warningId
+    ))
+    const deliverySummary = issuedWarning?.deliverySummary || location.state?.deliverySummary
+
     return (
         <main className="mx-auto max-w-7xl px-5 pb-12 pt-20 sm:px-8 lg:pt-10">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -68,11 +73,11 @@ function WarningsPage() {
             {location.state?.issued && (
                 <div role="status" className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
                     <p className="font-semibold">Warning issuance completed.</p>
-                    {location.state.deliverySummary && (
+                    {deliverySummary && (
                         <p className="mt-1">
-                            In-app: {location.state.deliverySummary.inAppSent}/{location.state.deliverySummary.recipients} ·
-                            SMS: {location.state.deliverySummary.smsQueued || 0} queued, {location.state.deliverySummary.smsSent} carrier accepted, {location.state.deliverySummary.smsDelivered || 0} delivery-confirmed, {location.state.deliverySummary.smsFailed} failed ·
-                            Email fallback: {location.state.deliverySummary.emailFallbackSent} sent, {location.state.deliverySummary.emailFallbackFailed} failed.
+                            In-app: {deliverySummary.inAppSent}/{deliverySummary.recipients} ·
+                            SMS: {deliverySummary.smsQueued || 0} queued, {deliverySummary.smsSent} carrier accepted, {deliverySummary.smsDelivered || 0} delivery-confirmed, {deliverySummary.smsFailed} failed ·
+                            Email fallback: {deliverySummary.emailFallbackSent} sent, {deliverySummary.emailFallbackFailed} failed.
                         </p>
                     )}
                     <p className="mt-1 text-xs">TextBee delivery updates refresh automatically.</p>
