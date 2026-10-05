@@ -94,7 +94,7 @@ export default function DonationMobileView() {
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-800 text-white">
             <Heart size={20} />
           </span>
-          <span className="font-bold text-slate-900">SafeZone</span>
+          <span className="font-bold text-slate-900">Support</span>
         </div>
         <button className="p-2 text-slate-700 hover:bg-slate-100 rounded-lg">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -135,23 +135,23 @@ export default function DonationMobileView() {
           Help families with food, medicine, shelter and recovery. Your contribution matters.
         </p>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 px-4">
           <button
-            className="w-full py-3.5 px-4 bg-green-600 text-white font-semibold rounded-xl shadow-sm hover:bg-green-700 transition flex items-center justify-center gap-2"
+            className="w-full py-3 bg-green-600 text-white font-medium rounded-2xl shadow-sm hover:bg-green-700 transition active:scale-[0.98] flex items-center justify-center gap-2"
             onClick={() => navigate('/donation/new')}
           >
             <Heart size={18} />
             Start Fundraising
           </button>
           <button
-            className="w-full py-3.5 px-4 bg-white text-slate-700 font-semibold rounded-xl border border-slate-300 hover:bg-slate-50 transition flex items-center justify-center gap-2"
+            className="w-full py-3 bg-white text-slate-700 font-medium rounded-2xl border border-slate-300 hover:bg-slate-50 transition active:scale-[0.98] flex items-center justify-center gap-2"
             onClick={() => navigate('/donation/volunteer')}
           >
             <User size={18} />
             Become a volunteer
           </button>
           <button
-            className="w-full py-3.5 px-4 bg-blue-600 text-white font-semibold rounded-xl shadow-sm hover:bg-blue-700 transition flex items-center justify-center gap-2"
+            className="w-full py-3 bg-blue-600 text-white font-medium rounded-2xl shadow-sm hover:bg-blue-700 transition active:scale-[0.98] flex items-center justify-center gap-2"
             onClick={() => {
               document.getElementById('donate-section')?.scrollIntoView({ behavior: 'smooth' })
             }}
