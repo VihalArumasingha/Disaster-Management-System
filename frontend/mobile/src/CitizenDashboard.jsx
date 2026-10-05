@@ -4,6 +4,7 @@ import {
     ChevronRight,
     ClipboardPlus,
     Clock3,
+    Heart,
     House,
     LogOut,
     Map,
@@ -381,6 +382,13 @@ function CitizenDashboard() {
                     </span>
                 </Link>
                 <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-blue-600 transition"
+                    >
+                        <Heart size={16} aria-hidden="true" />
+                        Support Disaster
+                    </button>
                     <Link
                         to="/alerts"
                         className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100"
@@ -416,27 +424,12 @@ function CitizenDashboard() {
             >
                 {navigation.map(({ label, path, icon: Icon, primary }) => {
                     const isActive = activePath === path
-                    if (primary) {
-                        return (
-                            <Link
-                                key={path}
-                                to={path}
-                                aria-label={label}
-                                className="flex flex-col items-center justify-center gap-1 text-slate-500"
-                            >
-                                <span className={`-mt-7 flex h-[54px] w-[54px] items-center justify-center rounded-full border-4 border-slate-50 bg-blue-800 text-white shadow-lg ${isActive ? 'ring-2 ring-blue-200' : ''}`}>
-                                    <Icon size={23} aria-hidden="true" />
-                                </span>
-                                <span className={`text-[10px] font-semibold ${isActive ? 'text-blue-800' : ''}`}>{label}</span>
-                            </Link>
-                        )
-                    }
                     return (
                         <Link
                             key={path}
                             to={path}
                             aria-current={isActive ? 'page' : undefined}
-                            className={`flex flex-col items-center justify-center gap-1 ${isActive ? 'text-blue-800' : 'text-slate-500'}`}
+                            className={`flex flex-col items-center justify-center gap-1 ${isActive ? 'text-blue-600' : 'text-slate-500'}`}
                         >
                             <span className="relative">
                                 <Icon size={21} strokeWidth={isActive ? 2.4 : 1.9} aria-hidden="true" />
