@@ -6,7 +6,6 @@ import {
     ChevronRight,
     CircleCheck,
     ClipboardPlus,
-    Clock3,
     Heart,
     Hospital,
     House,
@@ -26,6 +25,7 @@ import { CITIZEN_ROLE } from './constants/roles'
 import api from './services/api'
 import NearbyHazardsPanel from './NearbyHazardsPanel'
 import WarningMap from './WarningMap'
+import ReportHazard from './pages/ReportHazard'
 
 const navigation = [
     { label: 'Home', path: '/dashboard', icon: House },
@@ -800,6 +800,7 @@ function CitizenDashboard() {
     const renderSection = () => {
         if (isWarningDetail) return renderWarningDetail()
         if (activePath === '/dashboard') return renderHome()
+        if (activePath === '/report-hazard') return <ReportHazard />
         if (activePath === '/map') return <NearbyHazardsPanel fullPage />
         if (activePath === '/alerts') return renderAlerts()
         if (activePath === '/profile') {
@@ -931,13 +932,13 @@ function CitizenDashboard() {
 
     return (
         <div className="mx-auto min-h-screen w-full max-w-md bg-slate-50 pb-[calc(6rem+env(safe-area-inset-bottom))] text-slate-900 shadow-xl">
-            <header className="sticky top-0 z-20 flex h-[70px] items-center justify-between border-b border-slate-100 bg-white/95 px-5 backdrop-blur">
+            <header className={`sticky top-0 z-20 flex items-center justify-between border-b border-slate-100 bg-white/95 px-5 backdrop-blur ${activePath === '/report-hazard' ? 'h-[56px]' : 'h-[70px]'}`}>
                 <Link
                     to="/dashboard"
                     className="flex items-center gap-2.5"
                     aria-label="DMS home"
                 >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-800 text-white">
+                    <span className={`flex items-center justify-center rounded-xl bg-[#10203B] text-white ${activePath === '/report-hazard' ? 'h-8 w-8' : 'h-10 w-10'}`}>
                         <ShieldCheck
                             size={23}
                             aria-hidden="true"
@@ -949,20 +950,18 @@ function CitizenDashboard() {
                             DMS
                         </span>
 
-                        <span className="block text-[10px] font-medium leading-4 text-slate-500">
-                            Disaster Management
-                        </span>
+                        {activePath !== '/report-hazard' && <span className="block text-[10px] font-medium leading-4 text-slate-500">Disaster Management</span>}
                     </span>
                 </Link>
 
                 <div className="flex items-center gap-3">
-                    <Link
+                    {activePath !== '/report-hazard' && <Link
                         to="/donation"
                         className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-blue-600 transition"
                     >
                         <Heart size={16} aria-hidden="true" />
                         Support Disaster
-                    </Link>
+                    </Link>}
                     <Link
                         to="/alerts"
                         className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100"

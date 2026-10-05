@@ -122,3 +122,9 @@ export default {
     updateCitizenHazardReport,
     deleteCitizenHazardReport
 }
+
+export const getHazardReportByPhotoFilename = async (filename) => {
+    return HazardReport.findOne({
+        'photo.url': `/api/hazard-report-photos/${filename}`
+    })
+}
