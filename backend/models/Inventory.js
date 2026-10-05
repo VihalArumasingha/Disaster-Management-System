@@ -22,6 +22,20 @@ const inventorySchema = new mongoose.Schema(
             type: String,
             trim: true,
             maxlength: 500
+        },
+        // Optional enrichment used by the NGO Inventory Management page
+        unit: {
+            type: String,
+            trim: true,
+            maxlength: 30
+        },
+        center: {
+            type: String,
+            trim: true,
+            maxlength: 120
+        },
+        date: {
+            type: Date
         }
     },
     { timestamps: true }
