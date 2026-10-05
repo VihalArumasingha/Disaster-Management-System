@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, Clock3, MapPin, Signal } from 'lucide-react'
+import { ArrowUpRight, Clock3, MapPin, ShieldCheck, Signal } from 'lucide-react'
 
 const priorityStyles = {
 	low: 'border-slate-200 bg-slate-100 text-slate-700',
@@ -39,7 +39,7 @@ const getLocationName = (cluster) => {
 		: 'Location unavailable'
 }
 
-function HazardClusterCard({ cluster }) {
+function HazardClusterCard({ cluster, escalationEligible = false }) {
 	const priority = String(cluster.priorityLevel || 'low').toLowerCase()
 	const clusterId = cluster._id || cluster.id
 	const status = titleCase(cluster.status || 'active')
@@ -55,6 +55,11 @@ function HazardClusterCard({ cluster }) {
 					<span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${priorityStyles[priority] || priorityStyles.low}`}>
 						{titleCase(priority)} priority
 					</span>
+					{escalationEligible && (
+						<span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+							<ShieldCheck size={13} /> Eligible for escalation
+						</span>
+					)}
 					<span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
 						{status}
 					</span>
