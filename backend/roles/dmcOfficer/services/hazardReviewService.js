@@ -7,6 +7,10 @@ import {
     calculateClusterPriority
 } from '../../citizen/services/hazardPriorityService.js'
 
+import {
+    prepareEscalationHandoff
+} from './warningEscalationService.js'
+
 export const getHazardReviewQueue = async () => {
     return ReportCluster.find({
         status: 'active'
@@ -131,9 +135,15 @@ export const verifyHazardReport = async (
         report.clusterId
     )
 
+    const escalation =
+    await prepareEscalationHandoff(
+        report.clusterId
+    )
+
     return {
         report,
-        cluster
+        cluster,
+        escalation
     }
 }
 

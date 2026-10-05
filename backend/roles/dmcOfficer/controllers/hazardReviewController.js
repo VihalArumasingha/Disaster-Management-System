@@ -70,7 +70,8 @@ export const verifyReport = async (
             success: true,
             message: 'Hazard report verified successfully',
             report: result.report,
-            cluster: result.cluster
+            cluster: result.cluster,
+            escalation: result.escalation
         })
     } catch (error) {
         next(error)
