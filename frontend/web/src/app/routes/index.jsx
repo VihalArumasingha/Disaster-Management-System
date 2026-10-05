@@ -5,6 +5,7 @@ import AuthPage from '../../auth/components/AuthPage'
 import RoleDashboard, { StaffDashboard } from '../../auth/components/RoleDashboard'
 import { USER_ROLES } from '../../constants/roles'
 import DmcOfficerLayout from '../../layouts/dmcOfficer/DmcOfficerLayout'
+import NgoManagerLayout from '../../layouts/ngoManager/NgoManagerLayout'
 
 const DmcDashboardPage = lazy(() => import('../../roles/dmcOfficer/pages/DmcDashboardPage'))
 const EscalatedReportsPage = lazy(() => import('../../roles/dmcOfficer/pages/EscalatedReportsPage'))
@@ -15,6 +16,8 @@ const WarningUpdatePage = lazy(() => import('../../roles/dmcOfficer/pages/Warnin
 const TargetAreasPage = lazy(() => import('../../roles/dmcOfficer/pages/TargetAreasPage'))
 const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateTargetAreaPage'))
 const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
+
+const DonationPage = lazy(() => import('../../components/NGODashboard/Donationpage.jsx'))
 
 const withLoading = (page) => (
     <Suspense fallback={<div className="px-5 py-20 text-center text-slate-600">Loading page…</div>}>
@@ -47,7 +50,13 @@ function AppRoutes() {
                 <Route path="profile" element={withLoading(<DmcProfilePage />)} />
             </Route>
             <Route path="/dutyofficer/dashboard" element={<RoleDashboard role={USER_ROLES.dutyofficer} />} />
-            <Route path="/ngomanager/dashboard" element={<RoleDashboard role={USER_ROLES.ngomanager} />} />
+
+            {/* NGO Manager — nested layout */}
+            <Route path="/ngomanager" element={<NgoManagerLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<RoleDashboard role={USER_ROLES.ngomanager} />} />
+                <Route path="donations" element={withLoading(<DonationPage />)} />
+            </Route>
 
             <Route
                 path="*"
