@@ -101,7 +101,7 @@ export default function NGODisasterPage() {
             if (filterStatus)      params.set('status', filterStatus)
             if (search.trim())     params.set('q', search.trim())
 
-            const res = await fetch(`${API_BASE}/api/dmcofficer/warnings?${params}`, {
+            const res = await fetch(`${API_BASE}/api/ngomanager/disasters?${params}`, {
                 credentials: 'include'
             })
             if (!res.ok) throw new Error(`Server error ${res.status}`)
@@ -128,7 +128,7 @@ export default function NGODisasterPage() {
         if (!confirm('Are you sure you want to delete this disaster?')) return
         
         try {
-            const res = await fetch(`${API_BASE}/api/dmcofficer/warnings/${disasterId}`, {
+            const res = await fetch(`${API_BASE}/api/ngomanager/disasters/${disasterId}`, {
                 method: 'DELETE',
                 credentials: 'include'
             })
@@ -181,23 +181,17 @@ export default function NGODisasterPage() {
         // ── Table ──
         const rows = disasters.map(d => [
             d.title || '—',
-            hazardTypeLabel(d.hazardType),
-            severityLabel(d.severity),
-            d.targetAreaIds?.length || 0,
-            d.actionSteps?.length || 0,
-            d.issuedAt
-                ? new Date(d.issuedAt).toLocaleString('en-LK', {
-                    day: '2-digit', month: 'short', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit'
-                  })
-                : '—',
-            statusLabel(d.status),
+            d.city || '—',
+            d.severity || 'Medium',
+            d.active ? 'Yes' : 'No',
+            d.showOnDonationPage ? 'Yes' : 'No',
+            d.images?.length || 0,
         ])
 
         autoTable(doc, {
             startY: filters.length ? 40 : 35,
             head: [[
-                'Disaster Name', 'Type', 'Severity', 'Areas', 'Action Steps', 'Issued Date', 'Status'
+                'Disaster Name', 'City', 'Severity', 'Active', 'Show on Donation', 'Images'
             ]],
             body: rows,
             styles:     { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
@@ -205,12 +199,11 @@ export default function NGODisasterPage() {
             alternateRowStyles: { fillColor: [241, 245, 249] },
             columnStyles: {
                 0: { cellWidth: 40 },  // Name
-                1: { cellWidth: 25 },  // Type
-                2: { cellWidth: 25 },  // Severity
-                3: { cellWidth: 15 },  // Areas
-                4: { cellWidth: 20 },  // Action Steps
-                5: { cellWidth: 35 },  // Date
-                6: { cellWidth: 25 },  // Status
+                1: { cellWidth: 25 },  // City
+                2: { cellWidth: 20 },  // Severity
+                3: { cellWidth: 15 },  // Active
+                4: { cellWidth: 20 },  // Show on Donation
+                5: { cellWidth: 15 },  // Images
             },
             didDrawPage: (data) => {
                 doc.setFontSize(7)
@@ -234,7 +227,7 @@ export default function NGODisasterPage() {
                 <h1 className="text-2xl font-bold text-red-700">Active Disasters</h1>
                 <div className="flex gap-2">
                     <button
-                        onClick={() => nav('/disaster/new')}
+                        onClick={() => nav('/ngomanager/disaster/new')}
                         className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
                     >
                         <Plus size={15} /> New Disaster
@@ -250,7 +243,7 @@ export default function NGODisasterPage() {
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Search disaster name or description…"
+                        placeholder="Search disaster name or city…"
                         value={search}
                         onChange={e => handleSearch(e.target.value)}
                         className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-4 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
@@ -258,40 +251,37 @@ export default function NGODisasterPage() {
                 </div>
 
                 {/* Dropdowns */}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     <Select
                         icon={<AlertTriangle size={14} />}
                         label="All severities"
                         value={filterSeverity}
                         onChange={v => setFilterSeverity(v)}
                         options={[
-                            { value: 'emergency', label: 'Emergency' },
-                            { value: 'warning',   label: 'Warning' },
-                            { value: 'watch',     label: 'Watch' },
-                            { value: 'advisory',  label: 'Advisory' },
-                        ]}
-                    />
-                    <Select
-                        icon={<span className="text-xs">🌊</span>}
-                        label="All types"
-                        value={filterHazardType}
-                        onChange={v => setFilterHazardType(v)}
-                        options={[
-                            { value: 'flood',     label: 'Flood' },
-                            { value: 'landslide', label: 'Landslide' },
-                            { value: 'tsunami',   label: 'Tsunami' },
-                            { value: 'storm',     label: 'Storm' },
-                            { value: 'other',     label: 'Other' },
+                            { value: 'Low', label: 'Low' },
+                            { value: 'Medium', label: 'Medium' },
+                            { value: 'High', label: 'High' },
+                            { value: 'Critical', label: 'Critical' },
                         ]}
                     />
                     <Select
                         icon={<span className="text-xs">📊</span>}
-                        label="All statuses"
+                        label="Active status"
                         value={filterStatus}
                         onChange={v => setFilterStatus(v)}
                         options={[
-                            { value: 'issued',           label: 'Active' },
-                            { value: 'partially_issued', label: 'Partially Active' },
+                            { value: 'true', label: 'Active' },
+                            { value: 'false', label: 'Inactive' },
+                        ]}
+                    />
+                    <Select
+                        icon={<span className="text-xs">�</span>}
+                        label="Show on Donation"
+                        value={filterHazardType}
+                        onChange={v => setFilterHazardType(v)}
+                        options={[
+                            { value: 'true', label: 'Yes' },
+                            { value: 'false', label: 'No' },
                         ]}
                     />
                 </div>
@@ -334,7 +324,7 @@ export default function NGODisasterPage() {
                     <table className="min-w-[1000px] w-full text-sm">
                         <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
                             <tr>
-                                {['Name','Type','Severity','Areas','Needs','Status','Issued Date','Actions'].map(h => (
+                                {['Name','City','Severity','Active','Show on Donation','Images','Actions'].map(h => (
                                     <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-slate-600 first:pl-5">
                                         {h}
                                     </th>
@@ -373,55 +363,46 @@ export default function NGODisasterPage() {
                                                 {d.title || '—'}
                                             </p>
                                             <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
-                                                {d.message || 'No description'}
+                                                {d.summary || 'No description'}
                                             </p>
                                         </td>
 
-                                        {/* Type */}
+                                        {/* City */}
                                         <td className="px-4 py-3 text-slate-600">
-                                            {hazardTypeLabel(d.hazardType)}
+                                            {d.city || '—'}
                                         </td>
 
                                         {/* Severity */}
                                         <td className="px-4 py-3">
                                             <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${severityColor(d.severity)}`}>
-                                                {severityLabel(d.severity)}
+                                                {d.severity || 'Medium'}
                                             </span>
                                         </td>
 
-                                        {/* Areas */}
-                                        <td className="px-4 py-3 text-slate-600">
-                                            <div className="flex items-center gap-1">
-                                                <MapPin size={12} className="text-slate-400" />
-                                                {d.targetAreaIds?.length || 0}
-                                            </div>
-                                        </td>
-
-                                        {/* Needs (Action Steps) */}
-                                        <td className="px-4 py-3 text-slate-600">
-                                            <div className="flex items-center gap-1">
-                                                <Package size={12} className="text-slate-400" />
-                                                {d.actionSteps?.length || 0}
-                                            </div>
-                                        </td>
-
-                                        {/* Status */}
+                                        {/* Active */}
                                         <td className="px-4 py-3">
-                                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor(d.status)}`}>
-                                                {statusLabel(d.status)}
+                                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${d.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                {d.active ? 'Yes' : 'No'}
                                             </span>
                                         </td>
 
-                                        {/* Issued Date */}
-                                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
-                                            {dateStr}
+                                        {/* Show on Donation Page */}
+                                        <td className="px-4 py-3">
+                                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${d.showOnDonationPage ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                {d.showOnDonationPage ? 'Yes' : 'No'}
+                                            </span>
+                                        </td>
+
+                                        {/* Images */}
+                                        <td className="px-4 py-3 text-slate-600">
+                                            {d.images?.length || 0}
                                         </td>
 
                                         {/* Actions */}
                                         <td className="px-4 py-3">
                                             <div className="flex gap-2">
                                                 <button
-                                                    onClick={() => nav(`/disaster/edit/${d._id}`)}
+                                                    onClick={() => nav(`/ngomanager/disaster/${d._id}/edit`)}
                                                     className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition"
                                                     title="Edit"
                                                 >
@@ -465,7 +446,7 @@ export default function NGODisasterPage() {
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <p className="text-xs text-slate-500">Total Areas Affected</p>
                     <p className="text-2xl font-bold text-slate-800">
-                        {disasters.reduce((sum, d) => sum + (d.targetAreaIds?.length || 0), 0)}
+                        {disasters.reduce((sum, d) => sum + (d.targetAreaIds?.length || 0) + (d.manualTargetAreas?.length || 0), 0)}
                     </p>
                 </div>
             </div>

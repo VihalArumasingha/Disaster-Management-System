@@ -2,8 +2,13 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import cookieParser from 'cookie-parser'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 import connectDB from './config/db.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 import authRoutes from './roles/auth/routes/authRoutes.js'
 import citizenRoutes from './roles/citizen/routes/citizenRoutes.js'
@@ -69,6 +74,9 @@ app.post(
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 app.get('/api/health', (req, res) => {
     res.status(200).json({
