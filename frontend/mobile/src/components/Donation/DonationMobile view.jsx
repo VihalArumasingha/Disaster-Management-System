@@ -138,7 +138,7 @@ export default function DonationMobileView() {
         <div className="flex flex-col gap-3 px-4">
           <button
             className="w-full py-3 bg-green-600 text-white font-medium rounded-2xl shadow-sm hover:bg-green-700 transition active:scale-[0.98] flex items-center justify-center gap-2"
-            onClick={() => navigate('/donation/new')}
+            onClick={() => navigate('/donation/fundraise')}
           >
             <Heart size={18} />
             Start Fundraising

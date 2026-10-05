@@ -3,6 +3,7 @@ import { AuthProvider } from './auth'
 import CitizenDashboard from './CitizenDashboard'
 import MobileAuthPage from './MobileAuthPage'
 import DonationMobileView from './components/Donation/DonationMobile view'
+import DonationMoney from './components/Donation/Donatemoney'
 import LocationTest from './pages/LocationTest'
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
                     <Route path="/alerts" element={<CitizenDashboard />} />
                     <Route path="/profile" element={<CitizenDashboard />} />
                     <Route path="/donation" element={<DonationMobileView />} />
+                    <Route path="/donation/fundraise" element={<DonationMoney />} />
                     <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
             </AuthProvider>
