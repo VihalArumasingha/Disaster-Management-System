@@ -64,6 +64,8 @@ export async function createDonation(req, res, next) {
             depositDate:    depositDate    ? new Date(depositDate) : undefined,
             depositorName:  depositorName  || undefined,
             referenceNo:    referenceNo    || undefined,
+            // Cloudinary secure URL of the slip image (see donationUpload.js).
+            // Legacy rows may still hold a local 'uploads/donations/...' path.
             evidencePath:   req.file       ? req.file.path : undefined,
             status:         status         || 'RECEIVED'
         })

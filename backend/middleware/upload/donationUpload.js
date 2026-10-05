@@ -1,38 +1,52 @@
-import path from 'path'
-import { fileURLToPath } from 'url'
 import multer from 'multer'
-import fs from 'fs'
+import { CloudinaryStorage } from 'multer-storage-cloudinary'
+import configureCloudinary from '../../config/cloudinary.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+// Lazily build the real multer instance. This MUST NOT run at module-import
+// time: in ESM, imported modules (this one included, via donationRoutes.js)
+// are evaluated before server.js's own top-level code (which calls
+// dotenv.config()). Configuring Cloudinary here eagerly would read empty
+// env vars and throw. Building it on first use (first incoming request)
+// guarantees dotenv has already loaded. Same pattern as disasterUpload.js.
+let donationUploadInstance = null
 
-const uploadDir = path.join(__dirname, '..', '..', '..', 'uploads', 'donations')
+const getDonationUpload = () => {
+    if (!donationUploadInstance) {
+        const cloudinary = configureCloudinary()
 
-// Create uploads dir if it doesn't exist
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true })
+        // Donation slip/proof images are stored on Cloudinary so they are
+        // reachable by URL from the dashboard (no express.static for uploads/).
+        const storage = new CloudinaryStorage({
+            cloudinary,
+            params: {
+                folder: 'ngo/donations',
+                allowed_formats: ['jpg', 'jpeg', 'png'],
+                resource_type: 'image'
+            }
+        })
+
+        const fileFilter = (_req, file, cb) => {
+            if (['image/jpeg', 'image/png'].includes(file.mimetype)) {
+                cb(null, true)
+            } else {
+                cb(new Error('Only PNG or JPG images are allowed.'), false)
+            }
+        }
+
+        donationUploadInstance = multer({
+            storage,
+            fileFilter,
+            limits: { fileSize: 2 * 1024 * 1024 } // 2 MB
+        })
+    }
+
+    return donationUploadInstance
 }
 
-const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadDir),
-    filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase()
-        cb(null, `donation-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`)
-    }
-})
-
-const fileFilter = (_req, file, cb) => {
-    if (['image/jpeg', 'image/png'].includes(file.mimetype)) {
-        cb(null, true)
-    } else {
-        cb(new Error('Only PNG or JPG images are allowed.'), false)
-    }
+// Thin wrapper exposing the same API surface used by the routes
+// (donationUpload.single('evidence')) while deferring instantiation.
+const donationUpload = {
+    single: (...args) => (req, res, next) => getDonationUpload().single(...args)(req, res, next)
 }
-
-const donationUpload = multer({
-    storage,
-    fileFilter,
-    limits: { fileSize: 2 * 1024 * 1024 } // 2 MB
-})
 
 export default donationUpload
