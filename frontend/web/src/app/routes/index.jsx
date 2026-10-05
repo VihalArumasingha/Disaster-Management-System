@@ -18,6 +18,7 @@ const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/Cre
 const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
 
 const DonationPage = lazy(() => import('../../components/NGODashboard/Donationpage.jsx'))
+const ActiveDisasterPage = lazy(() => import('../../components/NGODashboard/activedisaster.jsx'))
 
 const withLoading = (page) => (
     <Suspense fallback={<div className="px-5 py-20 text-center text-slate-600">Loading page…</div>}>
@@ -56,6 +57,7 @@ function AppRoutes() {
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<RoleDashboard role={USER_ROLES.ngomanager} />} />
                 <Route path="donations" element={withLoading(<DonationPage />)} />
+                <Route path="active-disasters" element={withLoading(<ActiveDisasterPage />)} />
             </Route>
 
             <Route
