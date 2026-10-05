@@ -395,15 +395,20 @@ export default function NGODisasterPage() {
                                         <td className="px-4 py-3">
                                             {d.images && d.images.length > 0 ? (
                                                 <div className="flex gap-1">
-                                                    {d.images.slice(0, 3).map((img, idx) => (
-                                                        <img
-                                                            key={idx}
-                                                            src={`${API_BASE}${img.url}`}
-                                                            alt="Disaster"
-                                                            className="w-10 h-10 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition"
-                                                            onClick={() => window.open(`${API_BASE}${img.url}`, '_blank')}
-                                                        />
-                                                    ))}
+                                                    {d.images.slice(0, 3).map((img, idx) => {
+                                                        const imgSrc = /^https?:\/\//i.test(img.url)
+                                                            ? img.url
+                                                            : `${API_BASE}${img.url}`
+                                                        return (
+                                                            <img
+                                                                key={idx}
+                                                                src={imgSrc}
+                                                                alt="Disaster"
+                                                                className="w-10 h-10 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition"
+                                                                onClick={() => window.open(imgSrc, '_blank')}
+                                                            />
+                                                        )
+                                                    })}
                                                     {d.images.length > 3 && (
                                                         <span className="flex items-center justify-center w-10 h-10 text-xs text-slate-500 bg-slate-100 rounded-lg">
                                                             +{d.images.length - 3}
