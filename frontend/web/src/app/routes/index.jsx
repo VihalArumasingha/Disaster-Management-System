@@ -19,6 +19,7 @@ const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfil
 
 const DonationPage = lazy(() => import('../../components/NGODashboard/Donationpage.jsx'))
 const DonationFormPage = lazy(() => import('../../components/NGODashboard/DonationForm.jsx'))
+const EditDonationPage = lazy(() => import('../../components/NGODashboard/editdonatemoney.jsx'))
 const ActiveDisasterPage = lazy(() => import('../../components/NGODashboard/activedisaster.jsx'))
 const DisasterFormPage = lazy(() => import('../../components/NGODashboard/DisasterForm.jsx'))
 
@@ -60,6 +61,7 @@ function AppRoutes() {
                 <Route path="dashboard" element={<RoleDashboard role={USER_ROLES.ngomanager} />} />
                 <Route path="donations" element={withLoading(<DonationPage />)} />
                 <Route path="donations/new" element={withLoading(<DonationFormPage />)} />
+                <Route path="donations/:donationId/edit" element={withLoading(<EditDonationPage />)} />
                 <Route path="active-disasters" element={withLoading(<ActiveDisasterPage />)} />
                 <Route path="disaster/new" element={withLoading(<DisasterFormPage />)} />
                 <Route path="disaster/:disasterId/edit" element={withLoading(<DisasterFormPage />)} />

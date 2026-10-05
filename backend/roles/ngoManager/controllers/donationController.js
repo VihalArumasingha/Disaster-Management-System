@@ -1,3 +1,4 @@
+import mongoose from 'mongoose'
 import Donation from '../../../models/Donation.js'
 
 /**
@@ -153,6 +154,124 @@ export async function updateDonationStatus(req, res, next) {
         }
 
         return res.json({ success: true, data: donation })
+    } catch (err) {
+        next(err)
+    }
+}
+
+/**
+ * GET /api/donations/:id
+ * Protected — NGO manager only. Single donation (for the edit form).
+ */
+export async function getDonation(req, res, next) {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid donation id.' })
+        }
+
+        const donation = await Donation.findById(req.params.id).lean()
+        if (!donation) {
+            return res.status(404).json({ success: false, message: 'Donation not found.' })
+        }
+
+        return res.json({ success: true, data: donation })
+    } catch (err) {
+        next(err)
+    }
+}
+
+/**
+ * PUT /api/donations/:id
+ * Protected — NGO manager only.
+ * Multipart form-data (evidence image optional). Status is managed
+ * separately via PATCH /:id/status and is never changed here.
+ */
+export async function updateDonation(req, res, next) {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid donation id.' })
+        }
+
+        const {
+            donorType,
+            donorName,
+            donorEmail,
+            donorPhone,
+            donorAddress,
+            whatsapp,
+            amount,
+            currency,
+            channel,
+            isAnonymous,
+            allowNamePublic,
+            bankName,
+            branch,
+            depositDate,
+            depositorName,
+            referenceNo,
+            removeSlip
+        } = req.body
+
+        const errors = []
+
+        if (!donorType || !['Individual', 'Organization'].includes(donorType)) {
+            errors.push('donorType must be "Individual" or "Organization".')
+        }
+
+        const parsedAmount = parseFloat(amount)
+        if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+            errors.push('amount must be a positive number.')
+        }
+
+        if (!donorName && !donorEmail && !donorPhone) {
+            errors.push('Provide at least a name, email, or phone.')
+        }
+
+        if (errors.length) {
+            return res.status(400).json({ success: false, message: errors[0], errors })
+        }
+
+        const updates = {
+            donorType,
+            donorName:      donorName      ?? '',
+            donorEmail:     donorEmail     ?? '',
+            donorPhone:     donorPhone     ?? '',
+            donorAddress:   donorAddress   ?? '',
+            whatsapp:       whatsapp       ?? '',
+            amount:         parsedAmount,
+            currency:       currency       || 'LKR',
+            channel:        channel        ?? undefined,
+            isAnonymous:    isAnonymous === 'true' || isAnonymous === true,
+            allowNamePublic: allowNamePublic === 'true' || allowNamePublic === true,
+            bankName:       bankName       ?? '',
+            branch:         branch         ?? '',
+            depositDate:    depositDate    ? new Date(depositDate) : null,
+            depositorName:  depositorName  ?? '',
+            referenceNo:    referenceNo    ?? ''
+        }
+
+        // Slip: new upload replaces the old one; removeSlip clears it; otherwise keep
+        if (req.file) {
+            updates.evidencePath = req.file.path
+        } else if (removeSlip === 'true' || removeSlip === true) {
+            updates.evidencePath = null
+        }
+
+        const donation = await Donation.findByIdAndUpdate(
+            req.params.id,
+            updates,
+            { new: true, runValidators: true }
+        ).lean()
+
+        if (!donation) {
+            return res.status(404).json({ success: false, message: 'Donation not found.' })
+        }
+
+        return res.json({
+            success: true,
+            message: 'Donation updated successfully.',
+            data: donation
+        })
     } catch (err) {
         next(err)
     }

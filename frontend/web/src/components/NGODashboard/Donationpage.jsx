@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     RefreshCw, RotateCcw, FileText, Users, ExternalLink,
-    Search, ChevronDown, MessageCircle, Image, X
+    Search, ChevronDown, MessageCircle, Image, X, Pencil
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -511,18 +511,28 @@ export default function DonationPage() {
 
                                         {/* Action */}
                                         <td className="px-4 py-3">
-                                            {waUrl ? (
-                                                <a
-                                                    href={waUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="flex items-center gap-1 rounded-lg bg-green-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-600"
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => nav(`/ngomanager/donations/${d._id}/edit`)}
+                                                    title="Edit donation"
+                                                    className="flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700"
                                                 >
-                                                    <MessageCircle size={12} /> WhatsApp
-                                                </a>
-                                            ) : (
-                                                <span className="text-slate-300 text-xs">—</span>
-                                            )}
+                                                    <Pencil size={12} /> Edit
+                                                </button>
+                                                {waUrl ? (
+                                                    <a
+                                                        href={waUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="flex items-center gap-1 rounded-lg bg-green-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-600"
+                                                    >
+                                                        <MessageCircle size={12} /> WhatsApp
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-300 text-xs">—</span>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 )
