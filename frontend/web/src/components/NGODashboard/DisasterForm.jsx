@@ -128,6 +128,8 @@ export default function DisasterForm() {
             formData.append('severity', form.severity)
             formData.append('active', form.active)
             formData.append('showOnDonationPage', form.showOnDonationPage)
+            formData.append('hazardType', 'other')
+            formData.append('message', form.summary)
 
             // Append new image files (filter out null and already uploaded images)
             const newImages = images.filter(img => img && img instanceof File)
