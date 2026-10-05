@@ -24,6 +24,7 @@ const DonationFormPage = lazy(() => import('../../components/NGODashboard/Donati
 const EditDonationPage = lazy(() => import('../../components/NGODashboard/editdonatemoney.jsx'))
 const ActiveDisasterPage = lazy(() => import('../../components/NGODashboard/activedisaster.jsx'))
 const DisasterFormPage = lazy(() => import('../../components/NGODashboard/DisasterForm.jsx'))
+const CollectingCentersPage = lazy(() => import('../../components/NGODashboard/center.jsx'))
 
 const withLoading = (page) => (
     <Suspense fallback={<div className="px-5 py-20 text-center text-slate-600">Loading page…</div>}>
@@ -69,6 +70,7 @@ function AppRoutes() {
                 <Route path="active-disasters" element={withLoading(<ActiveDisasterPage />)} />
                 <Route path="disaster/new" element={withLoading(<DisasterFormPage />)} />
                 <Route path="disaster/:disasterId/edit" element={withLoading(<DisasterFormPage />)} />
+                <Route path="collecting-centers" element={withLoading(<CollectingCentersPage />)} />
             </Route>
 
             <Route
