@@ -20,7 +20,7 @@ const toE164Phone = (phone) => {
 }
 
 const isSmsAccepted = (delivery) => (
-    ['queued', 'sent', 'delivered'].includes(delivery.sms?.status)
+    ['queued', 'dispatched', 'sent', 'delivered'].includes(delivery.sms?.status)
 )
 
 const providerErrorMessage = (error) => (
@@ -249,7 +249,7 @@ export const deliverWarningToCitizen = async (warning, recipient) => {
     return delivery
 }
 
-const refreshWarningDeliverySummary = async (warningId) => {
+export const refreshWarningDeliverySummary = async (warningId) => {
     const [warning, deliveries] = await Promise.all([
         Warning.findById(warningId),
         WarningDelivery.find({ warningId })
@@ -273,6 +273,7 @@ const refreshWarningDeliverySummary = async (warningId) => {
         recipients: deliveries.length,
         inAppSent: deliveries.filter((delivery) => delivery.inApp.status === 'sent').length,
         smsQueued: deliveries.filter((delivery) => delivery.sms.status === 'queued').length,
+        smsDispatched: deliveries.filter((delivery) => delivery.sms.status === 'dispatched').length,
         smsSent: deliveries.filter((delivery) => (
             ['sent', 'delivered'].includes(delivery.sms.status)
         )).length,
@@ -289,17 +290,36 @@ const refreshWarningDeliverySummary = async (warningId) => {
         failureDetails: [...failureCounts.values()]
     }
 
+    await Warning.updateOne(
+        { _id: warningId },
+        { $set: { deliverySummary: summary } }
+    )
+    return summary
+}
+
+export const finalizeWarningDelivery = async (warningId) => {
+    const summary = await refreshWarningDeliverySummary(warningId)
+    const warning = await Warning.findById(warningId)
+    if (!warning || !summary) return
+
+    const deliveries = await WarningDelivery.find({ warningId })
     const anyDelivered = deliveries.some((delivery) => (
         delivery.inApp.status === 'sent'
         || ['sent', 'delivered'].includes(delivery.sms.status)
         || delivery.email.status === 'sent'
     ))
-    const hasFailedRecipient = summary.failedRecipients > 0
-    warning.status = hasFailedRecipient
+    if (!warning.updates.some((update) => update.type === 'issued')) {
+        warning.updates.push({
+            title: 'Warning issued',
+            message: warning.message,
+            type: 'issued',
+            createdAt: warning.issuedAt || new Date()
+        })
+    }
+    warning.status = summary.failedRecipients > 0
         ? anyDelivered ? 'partially_issued' : 'delivery_failed'
         : 'issued'
     warning.issuedAt ||= new Date()
-    warning.deliverySummary = summary
     await warning.save()
 }
 
@@ -506,7 +526,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
 
     const pollBefore = new Date(Date.now() - 10000)
     const deliveries = await WarningDelivery.find({
-        'sms.status': { $in: ['queued', 'unknown'] },
+        'sms.status': { $in: ['queued', 'dispatched', 'unknown'] },
         'sms.providerBatchId': { $ne: '' },
         $or: [
             { 'sms.lastPolledAt': null },
@@ -520,7 +540,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
         const pollingClaim = await WarningDelivery.findOneAndUpdate(
             {
                 _id: delivery._id,
-                'sms.status': { $in: ['queued', 'unknown'] },
+                'sms.status': { $in: ['queued', 'dispatched', 'unknown'] },
                 $or: [
                     { 'sms.lastPolledAt': null },
                     { 'sms.lastPolledAt': { $lte: pollBefore } }
@@ -531,14 +551,11 @@ export const pollQueuedTextBeeDeliveries = async () => {
         )
         if (!pollingClaim) return
         try {
-            const [warning, recipient] = await Promise.all([
-                Warning.findById(delivery.warningId),
-                User.findOne({
-                    _id: delivery.recipientId,
-                    role: { $in: CITIZEN_ROLE_VALUES }
-                }).select('_id')
-            ])
-            if (!warning || !recipient) return
+            const recipient = await User.findOne({
+                _id: delivery.recipientId,
+                role: { $in: CITIZEN_ROLE_VALUES }
+            }).select('_id')
+            if (!recipient) return
 
             const response = await axios.get(
                 `${getTextBeeApiBaseUrl()}/gateway/messages`,
@@ -565,54 +582,70 @@ export const pollQueuedTextBeeDeliveries = async () => {
                 throw new Error('TextBee message-history response has an unexpected format')
             }
             const message = messages.find((candidate) => (
-                (candidate.smsBatchId || candidate.batchId) === delivery.sms.providerBatchId
-            )) || (messages.length === 1 ? messages[0] : null)
-            if (!message) return
+                (candidate.smsBatch || candidate.smsBatchId || candidate.batchId)
+                    === delivery.sms.providerBatchId
+            ))
+            if (!message) {
+                if (!delivery.sms.lastPolledAt) {
+                    console.warn('TextBee status lookup returned no matching message; leaving SMS queued')
+                }
+                return
+            }
 
-            const providerStatus = String(
-                message.status || message.state || message.webhookEvent || ''
-            ).toLowerCase()
-            const messageStatus = ({
-                message_sent: 'sent',
-                message_delivered: 'delivered',
-                message_failed: 'failed',
-                unknown_state: 'unknown'
-            })[providerStatus] || providerStatus
-            if (!['sent', 'delivered', 'failed', 'unknown'].includes(messageStatus)) return
-            if (delivery.sms.status === 'delivered' || delivery.sms.status === 'failed') return
+            const providerStatus = String(message.status || message.state || '').toLowerCase()
+            const messageStatus = providerStatus === 'pending'
+                ? 'queued'
+                : providerStatus || 'unknown'
+            if (!['queued', 'dispatched', 'sent', 'delivered', 'failed', 'unknown'].includes(messageStatus)) {
+                throw new Error(`TextBee returned an unsupported SMS status: ${providerStatus || 'empty'}`)
+            }
+            if (['delivered', 'failed'].includes(delivery.sms.status)) return
+            if (delivery.sms.status === messageStatus) return
 
-            const updates = messageStatus === 'sent'
-                ? {
+            let updates
+            if (messageStatus === 'sent') {
+                updates = {
                     'sms.status': 'sent',
                     'sms.sentAt': message.sentAt ? new Date(message.sentAt) : new Date(),
                     'sms.error': ''
                 }
-                : messageStatus === 'delivered'
-                    ? {
-                        'sms.status': 'delivered',
-                        'sms.sentAt': message.sentAt ? new Date(message.sentAt) : delivery.sms.sentAt,
-                        'sms.deliveredAt': message.deliveredAt ? new Date(message.deliveredAt) : new Date(),
-                        'sms.error': ''
-                    }
-                    : messageStatus === 'failed'
-                        ? {
-                            'sms.status': 'failed',
-                            'sms.error': [
-                                message.errorCode ? `Code ${message.errorCode}:` : '',
-                                message.errorMessage || 'TextBee reported SMS delivery failure'
-                            ].filter(Boolean).join(' ')
-                        }
-                        : {
-                            'sms.status': 'unknown',
-                            'sms.error': message.errorMessage || 'TextBee could not confirm the SMS status'
-                        }
+            } else if (messageStatus === 'delivered') {
+                updates = {
+                    'sms.status': 'delivered',
+                    'sms.sentAt': message.sentAt ? new Date(message.sentAt) : delivery.sms.sentAt,
+                    'sms.deliveredAt': message.deliveredAt ? new Date(message.deliveredAt) : new Date(),
+                    'sms.error': ''
+                }
+            } else if (messageStatus === 'failed') {
+                updates = {
+                    'sms.status': 'failed',
+                    'sms.error': [
+                        message.errorCode ? `Code ${message.errorCode}:` : '',
+                        message.errorMessage || 'TextBee reported SMS delivery failure'
+                    ].filter(Boolean).join(' ')
+                }
+            } else if (messageStatus === 'unknown') {
+                updates = {
+                    'sms.status': 'unknown',
+                    'sms.error': message.errorMessage || 'TextBee could not confirm the SMS status'
+                }
+            } else {
+                updates = {
+                    'sms.status': messageStatus,
+                    'sms.error': ''
+                }
+            }
 
             const updatedDelivery = await WarningDelivery.findOneAndUpdate(
-                { _id: delivery._id, 'sms.status': { $in: ['queued', 'unknown'] } },
+                {
+                    _id: delivery._id,
+                    'sms.status': { $in: ['queued', 'dispatched', 'unknown'] }
+                },
                 { $set: updates },
                 { new: true }
             )
             if (!updatedDelivery) return
+            console.info(`TextBee SMS status updated: ${delivery.sms.status} -> ${messageStatus}`)
             if (messageStatus === 'failed') {
                 await sendSmsFailureFallback(updatedDelivery)
             }

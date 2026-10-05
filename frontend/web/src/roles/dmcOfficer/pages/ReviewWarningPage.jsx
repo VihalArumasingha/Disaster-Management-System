@@ -56,7 +56,7 @@ function ReviewWarningPage() {
             navigate('/dmcofficer/warnings', {
                 replace: true,
                 state: {
-                    issued: true,
+                    issuanceStarted: true,
                     warningId: data.warning._id,
                     deliverySummary: data.deliverySummary
                 }
@@ -84,6 +84,7 @@ function ReviewWarningPage() {
     }
 
     const { warning, deliveryAudience } = review
+    const warningResolved = Boolean(warning.resolvedAt)
 
     return (
         <main className="mx-auto max-w-5xl px-5 pb-12 pt-20 sm:px-8 lg:pt-10">
@@ -151,26 +152,34 @@ function ReviewWarningPage() {
                     <div><dt className="text-xs text-slate-500">Draft status</dt><dd className="mt-1 font-medium capitalize text-slate-800">{warning.status}</dd></div>
                 </dl>
 
+                {warningResolved && (
+                    <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        This warning was resolved by {warning.resolvedBy?.name || 'a DMC officer'} and cannot be issued again.
+                    </p>
+                )}
                 <label className="flex items-start gap-3 border-t border-slate-100 pt-5 text-sm text-slate-700">
                     <input
                         type="checkbox"
                         checked={confirmed}
                         onChange={(event) => setConfirmed(event.target.checked)}
+                        disabled={warningResolved}
                         className="mt-1 accent-blue-700"
                     />
                     <span>I have reviewed the warning details and audience. Issue this warning and attempt the listed notifications.</span>
                 </label>
                 <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-                    <Link to={`/dmcofficer/warnings/${warningId}/edit`} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700">
-                        Edit Draft
-                    </Link>
+                    {!warningResolved && warning.status === 'draft' && (
+                        <Link to={`/dmcofficer/warnings/${warningId}/edit`} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700">
+                            Edit Draft
+                        </Link>
+                    )}
                     <button
                         type="button"
                         onClick={issue}
-                        disabled={!confirmed || issuing || deliveryAudience.recipients === 0}
+                        disabled={warningResolved || !['draft', 'partially_issued', 'delivery_failed'].includes(warning.status) || !confirmed || issuing || deliveryAudience.recipients === 0}
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-red-700 px-5 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        <BellRing size={16} /> {issuing ? 'Issuing…' : 'Confirm and Issue Warning'}
+                        <BellRing size={16} /> {issuing ? 'Issuing…' : warningResolved ? 'Warning Resolved' : 'Confirm and Issue Warning'}
                     </button>
                 </div>
                 {deliveryAudience.recipients === 0 && (

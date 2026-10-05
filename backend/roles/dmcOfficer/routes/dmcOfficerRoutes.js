@@ -5,11 +5,13 @@ import { USER_ROLES } from '../../../utils/constants.js'
 import hazardReviewRoutes from './hazardReviewRoutes.js'
 import {
     openWeatherTile,
+    addWarningUpdate,
     editWarning,
     issueWarningNow,
     overview,
     profile,
     reviewWarning,
+    resolveWarningNow,
     saveTargetArea,
     saveWarning,
     targetAreaPreview,
@@ -32,6 +34,8 @@ router.get('/warnings', warnings)
 router.post('/warnings', saveWarning)
 router.post('/warnings/preview', warningRecipientPreview)
 router.get('/warnings/:warningId/review', reviewWarning)
+router.post('/warnings/:warningId/updates', addWarningUpdate)
+router.patch('/warnings/:warningId/resolve', resolveWarningNow)
 router.put('/warnings/:warningId', editWarning)
 router.post('/warnings/:warningId/issue', issueWarningNow)
 router.get('/map/tiles/:layer/:z/:x/:y', openWeatherTile)
