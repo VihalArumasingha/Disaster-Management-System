@@ -15,7 +15,10 @@ function CreateWarningPage() {
         title: '',
         severity: 'warning',
         hazardType: 'flood',
-        message: ''
+        message: '',
+        actionSteps: [''],
+        initialUpdateTitle: '',
+        initialUpdateMessage: ''
     })
     const [targetAreaIds, setTargetAreaIds] = useState([])
     const [recipientCount, setRecipientCount] = useState(null)
@@ -60,7 +63,10 @@ function CreateWarningPage() {
                     title: data.warning.title,
                     severity: data.warning.severity,
                     hazardType: data.warning.hazardType,
-                    message: data.warning.message
+                    message: data.warning.message,
+                    actionSteps: data.warning.actionSteps?.length
+                        ? data.warning.actionSteps
+                        : ['']
                 })
                 setTargetAreaIds([...new Set(data.warning.targetAreaIds.map((area) => area._id))])
             })
@@ -128,13 +134,25 @@ function CreateWarningPage() {
             setError('Select at least one target area.')
             return
         }
+        const actionSteps = form.actionSteps.map((step) => step.trim()).filter(Boolean)
+        if (actionSteps.length === 0) {
+            setError('Add at least one action citizens should take.')
+            return
+        }
+        if (
+            !warningId
+            && (!form.initialUpdateTitle.trim() || !form.initialUpdateMessage.trim())
+        ) {
+            setError('Add an initial update headline and details.')
+            return
+        }
 
         setSubmitting(true)
         try {
             if (warningId) {
-                await api.put(`/dmcofficer/warnings/${warningId}`, { ...form, targetAreaIds })
+                await api.put(`/dmcofficer/warnings/${warningId}`, { ...form, actionSteps, targetAreaIds })
             } else {
-                await api.post('/dmcofficer/warnings', { ...form, targetAreaIds })
+                await api.post('/dmcofficer/warnings', { ...form, actionSteps, targetAreaIds })
             }
             navigate('/dmcofficer/warnings', {
                 replace: true,
@@ -202,17 +220,105 @@ function CreateWarningPage() {
                 </div>
 
                 <label className="block text-sm font-semibold text-slate-800">
-                    Warning Message <span className="text-red-600">*</span>
+                    Full Disaster Overview <span className="text-red-600">*</span>
                     <textarea
                         required
                         rows={5}
                         maxLength={4000}
                         value={form.message}
                         onChange={(event) => setForm({ ...form, message: event.target.value })}
-                        placeholder="Provide clear instructions and safety guidance."
+                        placeholder="Describe what is happening, where and when it may affect people, and any important context."
                         className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                     />
                 </label>
+
+                <fieldset>
+                    <legend className="text-sm font-semibold text-slate-800">
+                        What to do <span className="text-red-600">*</span>
+                    </legend>
+                    <p className="mt-1 text-xs text-slate-500">
+                        Add clear, practical actions citizens should take for this warning.
+                    </p>
+                    <div className="mt-3 space-y-3">
+                        {form.actionSteps.map((step, index) => (
+                            <div key={`action-step-${index}`} className="flex items-start gap-2">
+                                <span className="mt-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+                                    {index + 1}
+                                </span>
+                                <textarea
+                                    required={index === 0}
+                                    rows={2}
+                                    maxLength={400}
+                                    value={step}
+                                    onChange={(event) => setForm({
+                                        ...form,
+                                        actionSteps: form.actionSteps.map((current, stepIndex) => (
+                                            stepIndex === index ? event.target.value : current
+                                        ))
+                                    })}
+                                    placeholder="e.g. Move people, pets and important documents to higher ground."
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                />
+                                {form.actionSteps.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm({
+                                            ...form,
+                                            actionSteps: form.actionSteps.filter((_, stepIndex) => stepIndex !== index)
+                                        })}
+                                        className="mt-2 rounded-lg px-2 py-2 text-sm text-slate-500 hover:bg-slate-100"
+                                        aria-label={`Remove action ${index + 1}`}
+                                    >
+                                        Remove
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    {form.actionSteps.length < 10 && (
+                        <button
+                            type="button"
+                            onClick={() => setForm({ ...form, actionSteps: [...form.actionSteps, ''] })}
+                            className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                            + Add another action
+                        </button>
+                    )}
+                </fieldset>
+
+                {!warningId && (
+                    <fieldset className="space-y-4 rounded-xl border border-slate-200 p-4 sm:p-5">
+                        <legend className="px-1 text-sm font-semibold text-slate-800">
+                            Initial warning update <span className="text-red-600">*</span>
+                        </legend>
+                        <p className="text-xs text-slate-500">
+                            This starts the update timeline shown to citizens. You can post further updates after issuing the warning.
+                        </p>
+                        <label className="block text-sm font-semibold text-slate-800">
+                            Update headline
+                            <input
+                                required
+                                maxLength={120}
+                                value={form.initialUpdateTitle}
+                                onChange={(event) => setForm({ ...form, initialUpdateTitle: event.target.value })}
+                                placeholder="e.g. River level rising near the affected area"
+                                className="mt-2 min-h-11 w-full rounded-lg border border-slate-300 px-3 font-normal outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                            />
+                        </label>
+                        <label className="block text-sm font-semibold text-slate-800">
+                            Update details
+                            <textarea
+                                required
+                                rows={3}
+                                maxLength={2000}
+                                value={form.initialUpdateMessage}
+                                onChange={(event) => setForm({ ...form, initialUpdateMessage: event.target.value })}
+                                placeholder="Add the first verified status update for citizens."
+                                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                            />
+                        </label>
+                    </fieldset>
+                )}
 
                 <fieldset>
                     <legend className="text-sm font-semibold text-slate-800">

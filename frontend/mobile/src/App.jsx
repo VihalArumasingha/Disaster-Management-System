@@ -12,6 +12,7 @@ function App() {
                     <Route path="/login" element={<MobileAuthPage mode="login" />} />
                     <Route path="/register" element={<MobileAuthPage mode="register" />} />
                     <Route path="/dashboard" element={<CitizenDashboard />} />
+                    <Route path="/warnings/:warningId" element={<CitizenDashboard />} />
                     <Route path="/map" element={<CitizenDashboard />} />
                     <Route path="/report" element={<CitizenDashboard />} />
                     <Route path="/alerts" element={<CitizenDashboard />} />

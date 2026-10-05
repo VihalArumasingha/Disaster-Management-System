@@ -1,5 +1,6 @@
 import AlertNotification from '../../../models/AlertNotification.js'
 import Warning from '../../../models/Warning.js'
+import { getNearbyFacilities, getNearbyHazards } from '../services/nearbyHazardService.js'
 
 export const listNotifications = async (req, res, next) => {
     try {
@@ -16,15 +17,81 @@ export const listNotifications = async (req, res, next) => {
 export const listRecentWarnings = async (req, res, next) => {
     try {
         const warnings = await Warning.find({
-            recipientIds: req.user._id,
             status: { $in: ['issued', 'partially_issued', 'delivery_failed'] }
         })
-            .select('title severity hazardType message targetAreaIds issuedAt createdAt')
-            .populate('targetAreaIds', 'name areaType')
+            .select('title severity hazardType message actionSteps updates targetAreaIds issuedAt issuedBy resolvedAt resolvedBy createdBy createdAt status')
+            .populate('targetAreaIds', 'name areaType geometry')
+            .populate('updates.affectedAreaIds', 'name areaType')
+            .populate('createdBy', 'name')
+            .populate('issuedBy', 'name')
+            .populate('resolvedBy', 'name')
             .sort({ issuedAt: -1, createdAt: -1 })
             .limit(5)
             .lean()
         res.json({ success: true, warnings })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const getLatestCitizenWarning = async (req, res, next) => {
+    try {
+        const warning = await Warning.findOne({
+            recipientIds: req.user._id,
+            status: { $in: ['issued', 'partially_issued', 'delivery_failed'] }
+        })
+            .select('title severity hazardType message actionSteps updates targetAreaIds issuedAt issuedBy resolvedAt resolvedBy createdBy createdAt status')
+            .populate('targetAreaIds', 'name areaType geometry')
+            .populate('updates.affectedAreaIds', 'name areaType')
+            .populate('createdBy', 'name')
+            .populate('issuedBy', 'name')
+            .populate('resolvedBy', 'name')
+            .sort({ issuedAt: -1, createdAt: -1 })
+            .lean()
+        res.json({ success: true, warning })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const nearbyHazards = async (req, res, next) => {
+    try {
+        res.json({ success: true, ...(await getNearbyHazards(req.user, req.query.radiusKm || 5)) })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const nearbyFacilities = async (req, res, next) => {
+    try {
+        const facilities = await getNearbyFacilities(req.user, req.query.radiusKm || 5)
+        res.json({ success: true, facilities })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const getWarningDetail = async (req, res, next) => {
+    try {
+        const warning = await Warning.findOne({
+            _id: req.params.warningId,
+            status: { $in: ['issued', 'partially_issued', 'delivery_failed'] }
+        })
+            .select('-recipientIds')
+            .populate('targetAreaIds', 'name areaType geometry')
+            .populate('updates.affectedAreaIds', 'name areaType geometry')
+            .populate('updates.createdBy', 'name')
+            .populate('createdBy', 'name')
+            .populate('issuedBy', 'name')
+            .populate('resolvedBy', 'name')
+            .lean()
+        if (!warning) {
+            return res.status(404).json({
+                success: false,
+                message: 'Warning not found'
+            })
+        }
+        res.json({ success: true, warning })
     } catch (error) {
         next(error)
     }

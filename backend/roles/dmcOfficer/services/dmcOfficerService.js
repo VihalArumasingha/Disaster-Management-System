@@ -1,10 +1,14 @@
 import mongoose from 'mongoose'
 import User from '../../../models/User.js'
 import TargetArea from '../../../models/TargetArea.js'
+import ReportCluster from '../../../models/ReportCluster.js'
 import Warning from '../../../models/Warning.js'
 import WarningDelivery from '../../../models/WarningDelivery.js'
 import { CITIZEN_ROLE_VALUES } from '../../../utils/citizenTargetAreas.js'
-import { deliverWarningToCitizen } from './warningDeliveryService.js'
+import {
+    deliverWarningToCitizen,
+    finalizeWarningDelivery
+} from './warningDeliveryService.js'
 
 const ALLOWED_AREA_TYPES = new Set([
     'river-flood',
@@ -21,6 +25,7 @@ const ALLOWED_HAZARDS = new Set([
     'storm',
     'other'
 ])
+const ALLOWED_SEVERITIES = new Set(['advisory', 'watch', 'warning', 'emergency'])
 const MAX_POLYGON_VERTICES = 500
 const pointOnSegment = ([x, y], [x1, y1], [x2, y2]) => (
     Math.abs((x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)) < 1e-10
@@ -227,8 +232,9 @@ export const listTargetAreas = async () => {
     return Promise.all(areas.map(shapeTargetArea))
 }
 
-const validateWarningData = async (data) => {
+const validateWarningData = async (data, requireActionSteps = false) => {
     const { title, severity, hazardType, message, targetAreaIds } = data
+    const actionSteps = data.actionSteps === undefined ? [] : data.actionSteps
 
     if (
         typeof title !== 'string'
@@ -249,6 +255,24 @@ const validateWarningData = async (data) => {
     }
     if (!ALLOWED_HAZARDS.has(hazardType)) {
         const error = new Error('Choose a valid hazard type')
+        error.statusCode = 400
+        throw error
+    }
+    if (
+        !Array.isArray(actionSteps)
+        || actionSteps.length > 10
+        || actionSteps.some((step) => (
+            typeof step !== 'string'
+            || !step.trim()
+            || step.trim().length > 400
+        ))
+    ) {
+        const error = new Error('Add up to 10 valid safety action steps')
+        error.statusCode = 400
+        throw error
+    }
+    if (requireActionSteps && actionSteps.every((step) => !step.trim())) {
+        const error = new Error('Add at least one action citizens should take')
         error.statusCode = 400
         throw error
     }
@@ -278,6 +302,7 @@ const validateWarningData = async (data) => {
         severity,
         hazardType,
         message: message.trim(),
+        actionSteps: actionSteps.map((step) => step.trim()),
         targetAreaIds: uniqueAreaIds.map((id) => areaById.get(id)._id),
         areas
     }
@@ -330,14 +355,38 @@ const shapeWarning = async (warning) => {
 }
 
 export const createWarning = async (data, officerId) => {
-    const validated = await validateWarningData(data)
+    const validated = await validateWarningData(data, true)
+    const initialUpdateTitle = typeof data.initialUpdateTitle === 'string'
+        ? data.initialUpdateTitle.trim()
+        : ''
+    const initialUpdateMessage = typeof data.initialUpdateMessage === 'string'
+        ? data.initialUpdateMessage.trim()
+        : ''
+    if (
+        !initialUpdateTitle
+        || initialUpdateTitle.length > 120
+        || !initialUpdateMessage
+        || initialUpdateMessage.length > 2000
+    ) {
+        const error = new Error('Enter the initial update headline and details')
+        error.statusCode = 400
+        throw error
+    }
     const recipients = await getCurrentRecipientsForAreas(validated.areas)
     const warning = await Warning.create({
         title: validated.title,
         severity: validated.severity,
         hazardType: validated.hazardType,
         message: validated.message,
+        actionSteps: validated.actionSteps,
         targetAreaIds: validated.targetAreaIds,
+        updates: [{
+            title: initialUpdateTitle,
+            message: initialUpdateMessage,
+            type: 'update',
+            createdBy: officerId,
+            createdAt: new Date()
+        }],
         recipientIds: recipients.map((recipient) => recipient._id),
         createdBy: officerId
     })
@@ -351,13 +400,14 @@ export const updateWarning = async (warningId, data) => {
         error.statusCode = 404
         throw error
     }
-    const validated = await validateWarningData(data)
+    const validated = await validateWarningData(data, true)
     const recipients = await getCurrentRecipientsForAreas(validated.areas)
     warning.set({
         title: validated.title,
         severity: validated.severity,
         hazardType: validated.hazardType,
         message: validated.message,
+        actionSteps: validated.actionSteps,
         targetAreaIds: validated.targetAreaIds,
         recipientIds: recipients.map((recipient) => recipient._id)
     })
@@ -380,7 +430,10 @@ export const previewWarningRecipients = async (targetAreaIds) => {
 export const getWarningForReview = async (warningId) => {
     const warning = await Warning.findById(warningId)
         .populate('targetAreaIds', 'name areaType hazardTypes geometry')
+        .populate('updates.affectedAreaIds', 'name')
         .populate('createdBy', 'name')
+        .populate('issuedBy', 'name')
+        .populate('resolvedBy', 'name')
     if (!warning) {
         const error = new Error('Warning not found')
         error.statusCode = 404
@@ -405,10 +458,100 @@ export const getWarningForReview = async (warningId) => {
     }
 }
 
-export const issueWarning = async (warningId) => {
+export const postWarningUpdate = async (warningId, data, officerId) => {
+    const title = typeof data.title === 'string' ? data.title.trim() : ''
+    const message = typeof data.message === 'string' ? data.message.trim() : ''
+    if (!title || title.length > 120 || !message || message.length > 2000) {
+        const error = new Error('Enter an update title and details')
+        error.statusCode = 400
+        throw error
+    }
+
+    const warning = await Warning.findOne({
+        _id: warningId,
+        resolvedAt: null,
+        status: { $in: ['issued', 'partially_issued', 'delivery_failed'] }
+    })
+    if (!warning) {
+        const error = new Error('Only an issued warning can receive updates')
+        error.statusCode = 404
+        throw error
+    }
+
+    const nextSeverity = data.severity || warning.severity
+    if (!ALLOWED_SEVERITIES.has(nextSeverity)) {
+        const error = new Error('Choose a valid warning severity')
+        error.statusCode = 400
+        throw error
+    }
+
+    const requestedAreaIds = data.targetAreaIds === undefined ? [] : data.targetAreaIds
+    if (
+        !Array.isArray(requestedAreaIds)
+        || requestedAreaIds.length > 50
+        || requestedAreaIds.some((id) => !mongoose.isValidObjectId(id))
+    ) {
+        const error = new Error('Choose valid affected areas')
+        error.statusCode = 400
+        throw error
+    }
+    const currentAreaIds = new Set(uniqueIds(warning.targetAreaIds))
+    const addedAreaIds = [...new Set(requestedAreaIds.map(String))]
+        .filter((id) => !currentAreaIds.has(id))
+    const addedAreas = addedAreaIds.length
+        ? await TargetArea.find({ _id: { $in: addedAreaIds } }).select('name geometry citizenIds')
+        : []
+    if (addedAreas.length !== addedAreaIds.length) {
+        const error = new Error('One or more selected target areas do not exist')
+        error.statusCode = 404
+        throw error
+    }
+
+    const severityChanged = nextSeverity !== warning.severity
+    const type = severityChanged ? 'severity' : addedAreas.length ? 'area' : 'update'
+    warning.severity = nextSeverity
+    warning.targetAreaIds.push(...addedAreas.map((area) => area._id))
+    warning.updates.push({
+        title,
+        message,
+        type,
+        severity: severityChanged ? nextSeverity : null,
+        affectedAreaIds: addedAreas.map((area) => area._id),
+        createdBy: officerId,
+        createdAt: new Date()
+    })
+
+    const newRecipients = addedAreas.length
+        ? await getCurrentRecipientsForAreas(addedAreas)
+        : []
+    const existingRecipients = new Set(uniqueIds(warning.recipientIds))
+    const newlyAffected = newRecipients.filter((recipient) => (
+        !existingRecipients.has(String(recipient._id))
+    ))
+    warning.recipientIds.push(...newlyAffected.map((recipient) => recipient._id))
+    await warning.save()
+
+    if (newlyAffected.length > 0) {
+        const updateWarning = {
+            ...warning.toObject(),
+            title: `${warning.title}: ${title}`,
+            message
+        }
+        setImmediate(() => {
+            deliverWarningToRecipients(updateWarning, newlyAffected).catch((error) => {
+                console.error(`Warning update delivery failed for ${warning._id}: ${error.message}`)
+            })
+        })
+    }
+
+    return getWarningForReview(warningId)
+}
+
+export const issueWarning = async (warningId, officerId) => {
     const warning = await Warning.findOneAndUpdate(
         {
             _id: warningId,
+            resolvedAt: null,
             status: { $in: ['draft', 'partially_issued', 'delivery_failed'] }
         },
         { $set: { status: 'issuing' } },
@@ -436,72 +579,40 @@ export const issueWarning = async (warningId) => {
             throw error
         }
         warning.recipientIds = recipients.map((recipient) => recipient._id)
-        await warning.save()
-
-        let nextIndex = 0
-        const workerCount = Math.min(8, recipients.length)
-        await Promise.all(Array.from({ length: workerCount }, async () => {
-            while (nextIndex < recipients.length) {
-                const recipient = recipients[nextIndex]
-                nextIndex += 1
-                await deliverWarningToCitizen(warning, recipient)
-            }
-        }))
-
-        const deliveries = await WarningDelivery.find({
-            warningId: warning._id,
-            recipientId: { $in: recipients.map((recipient) => recipient._id) }
-        })
-        const failureCounts = new Map()
-        deliveries.forEach((delivery) => {
-            for (const channel of ['inApp', 'sms', 'email']) {
-                if (delivery[channel].status !== 'failed') continue
-                const reason = delivery[channel].error || 'Delivery failed'
-                const key = `${channel}:${reason}`
-                failureCounts.set(key, {
-                    channel,
-                    reason,
-                    count: (failureCounts.get(key)?.count || 0) + 1
-                })
-            }
-        })
-        const counts = {
+        warning.deliverySummary = {
             recipients: recipients.length,
-            inAppSent: deliveries.filter((delivery) => delivery.inApp.status === 'sent').length,
-            smsQueued: deliveries.filter((delivery) => delivery.sms.status === 'queued').length,
-            smsSent: deliveries.filter((delivery) => ['sent', 'delivered'].includes(delivery.sms.status)).length,
-            smsDelivered: deliveries.filter((delivery) => delivery.sms.status === 'delivered').length,
-            smsFailed: deliveries.filter((delivery) => delivery.sms.status === 'failed').length,
-            smsUnknown: deliveries.filter((delivery) => delivery.sms.status === 'unknown').length,
-            emailFallbackSent: deliveries.filter((delivery) => delivery.email.status === 'sent').length,
-            emailFallbackFailed: deliveries.filter((delivery) => delivery.email.status === 'failed').length,
-            failedRecipients: deliveries.filter((delivery) => (
-                delivery.inApp.status === 'failed'
-                && delivery.sms.status === 'failed'
-                && delivery.email.status === 'failed'
-            )).length,
-            failureDetails: [...failureCounts.values()]
+            inAppSent: 0,
+            smsQueued: 0,
+            smsDispatched: 0,
+            smsSent: 0,
+            smsDelivered: 0,
+            smsFailed: 0,
+            smsUnknown: 0,
+            emailFallbackSent: 0,
+            emailFallbackFailed: 0,
+            failedRecipients: 0,
+            failureDetails: []
         }
-        const anyDelivered = deliveries.some((delivery) => (
-            delivery.inApp.status === 'sent'
-            || ['sent', 'delivered'].includes(delivery.sms.status)
-            || delivery.email.status === 'sent'
-        ))
-        warning.status = counts.failedRecipients === 0
-            ? 'issued'
-            : anyDelivered
-                ? 'partially_issued'
-                : 'delivery_failed'
-        warning.issuedAt = warning.status === 'issued' ? new Date() : warning.issuedAt
-        warning.deliverySummary = counts
+        warning.issuedBy = officerId
         await warning.save()
+
+        setImmediate(() => {
+            deliverWarningToRecipients(warning, recipients).catch(async (error) => {
+                console.error(`Warning delivery worker failed for ${warning._id}: ${error.message}`)
+                await Warning.updateOne(
+                    { _id: warning._id, status: 'issuing' },
+                    { $set: { status: 'delivery_failed' } }
+                )
+            })
+        })
+
         return {
             warning: {
                 _id: warning._id,
                 status: warning.status,
                 issuedAt: warning.issuedAt
             },
-            deliverySummary: counts
+            deliverySummary: warning.deliverySummary
         }
     } catch (error) {
         if (warning.status === 'issuing') {
@@ -512,11 +623,67 @@ export const issueWarning = async (warningId) => {
     }
 }
 
+export const resolveWarning = async (warningId, officerId) => {
+    const resolvedAt = new Date()
+    const warning = await Warning.findOneAndUpdate(
+        {
+            _id: warningId,
+            resolvedAt: null,
+            status: { $in: ['issued', 'partially_issued', 'delivery_failed'] }
+        },
+        {
+            $set: { resolvedAt, resolvedBy: officerId },
+            $push: {
+                updates: {
+                    title: 'Warning resolved',
+                    message: 'A DMC officer has marked this warning as resolved.',
+                    type: 'resolved',
+                    createdBy: officerId,
+                    createdAt: resolvedAt
+                }
+            }
+        },
+        { new: true }
+    )
+    if (!warning) {
+        const existing = await Warning.findById(warningId).select('resolvedAt status')
+        const error = new Error(
+            existing?.resolvedAt
+                ? 'This warning has already been resolved'
+                : 'Only an issued warning can be resolved'
+        )
+        error.statusCode = existing ? 409 : 404
+        throw error
+    }
+    return getWarningForReview(warningId)
+}
+
+const deliverWarningToRecipients = async (warning, recipients) => {
+    let nextIndex = 0
+    const workerCount = Math.min(8, recipients.length)
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+        while (nextIndex < recipients.length) {
+            const recipient = recipients[nextIndex]
+            nextIndex += 1
+            try {
+                await deliverWarningToCitizen(warning, recipient)
+            } catch (error) {
+                console.error(`Warning delivery failed for recipient ${recipient._id}: ${error.message}`)
+            }
+        }
+    }))
+    await finalizeWarningDelivery(warning._id)
+}
+
 export const listWarnings = async () => {
     const warnings = await Warning.find()
+        .select('title severity hazardType message targetAreaIds recipientIds status issuedAt issuedBy resolvedAt resolvedBy deliverySummary createdBy createdAt updatedAt')
         .populate('targetAreaIds', 'name areaType')
         .populate('createdBy', 'name')
+        .populate('issuedBy', 'name')
+        .populate('resolvedBy', 'name')
         .sort({ createdAt: -1 })
+        .lean()
 
     const recipientIds = uniqueIds(warnings.flatMap((warning) => warning.recipientIds))
     const currentCitizenIds = recipientIds.length > 0
@@ -528,12 +695,10 @@ export const listWarnings = async () => {
     const currentCitizenIdSet = new Set(currentCitizenIds.map(String))
 
     return warnings.map((warning) => {
-        const publicWarning = warning.toObject()
-        const warningRecipientIds = publicWarning.recipientIds || []
-        delete publicWarning.recipientIds
+        const { recipientIds = [], ...publicWarning } = warning
         return {
             ...publicWarning,
-            recipientCount: warningRecipientIds.filter((id) => (
+            recipientCount: recipientIds.filter((id) => (
                 currentCitizenIdSet.has(String(id))
             )).length
         }
@@ -541,11 +706,12 @@ export const listWarnings = async () => {
 }
 
 export const getOverview = async () => {
-    const [targetAreas, warnings, citizens] = await Promise.all([
+    const [targetAreas, warnings, citizens, escalatedReports] = await Promise.all([
         TargetArea.countDocuments(),
         Warning.countDocuments(),
-        User.countDocuments({ role: { $in: CITIZEN_ROLE_VALUES } })
+        User.countDocuments({ role: { $in: CITIZEN_ROLE_VALUES } }),
+        ReportCluster.countDocuments({ status: 'active' })
     ])
 
-    return { targetAreas, warnings, citizens, escalatedReports: 0 }
+    return { targetAreas, warnings, citizens, escalatedReports }
 }

@@ -70,14 +70,21 @@ Configure these backend environment variables:
   For local development, TextBee requires a public HTTPS URL (a tunnel can
   expose the local API); localhost URLs are not reachable by TextBee.
 - The backend also polls TextBee's authenticated message history every 10
-  seconds for queued or unknown SMS batches and refreshes warning summaries.
-  This provides status updates without a webhook; configuring the webhook is
-  still recommended for faster updates and remains supported.
+  seconds using `GET /gateway/messages?smsBatchId=<batch-id>` for queued or
+  unknown SMS batches and refreshes warning summaries. The provider's
+  `smsBatch`, `status`, and `sentAt` fields are used for status mapping. This
+  provides status updates without a webhook; configuring the webhook is still
+  recommended for faster updates and remains supported.
 - `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` for Brevo email fallback.
   `BREVO_SENDER_NAME` is optional.
 
-Per-recipient channel outcomes and provider errors are retained with the
-warning. A successful TextBee response initially marks the SMS as queued.
+Issuing a warning queues notification work and returns immediately; warning
+delivery results are updated asynchronously in the warning list. Per-recipient
+channel outcomes and provider errors are retained with the warning. A successful
+TextBee response initially marks the SMS as queued. TextBee's `dispatched`
+state means the gateway handed the message to its Android device, `sent` means
+the device reported sending it, and `delivered` means the carrier provided a
+handset delivery report.
 `MESSAGE_SENT` means the carrier accepted it and `MESSAGE_DELIVERED` means the
 carrier provided a handset delivery report. `MESSAGE_FAILED` updates only that
 recipient's SMS and triggers only that recipient's email fallback. `UNKNOWN_STATE`
@@ -87,8 +94,26 @@ page; successful channels are not sent again.
 Citizen in-app alerts are available
 from the authenticated `GET /api/citizen/notifications` endpoint and can be
 marked read with `PATCH /api/citizen/notifications/:notificationId/read`.
-Recent warnings addressed to the signed-in citizen are available from
-`GET /api/citizen/warnings/recent`.
+Recent issued warnings across the country are available to authenticated
+citizens from `GET /api/citizen/warnings/recent`; the detail route
+`GET /api/citizen/warnings/:warningId` returns the overview, safety steps,
+affected-area polygons, and update timeline for any issued warning.
+The mobile home also loads the latest warning addressed to the signed-in
+citizen from `GET /api/citizen/warnings/latest-for-me`. DMC officers share the
+same warnings and target-area collections; warning records retain the names
+of the creating, issuing, and resolving officers. Officers can mark an issued
+warning resolved with `PATCH /api/dmcofficer/warnings/:warningId/resolve`;
+resolution is recorded in the warning update timeline and resolved warnings
+are excluded from active nearby-hazard results.
+The mobile nearby-hazards panel uses the signed-in citizen's saved location:
+`GET /api/citizen/nearby-hazards?radiusKm=5` accepts radii of 2, 5, 10, 25,
+or 50 km and returns active nearby citizen-report clusters and issued warning
+areas. `GET /api/citizen/nearby-facilities?radiusKm=5` reads shelters and
+hospitals from OpenStreetMap's Overpass API when that map layer is enabled.
+OpenStreetMap location lookup requires an internet connection and is subject
+to the public Overpass service's availability and usage limits.
+DMC officers provide safety steps when drafting a warning and can post
+follow-up updates, raise severity, or expand affected areas after issuance.
 
 The map uses OpenStreetMap tiles as its base layer and optional OpenWeather
 precipitation, clouds, or temperature overlays. Configure `OPENWEATHER_KEY`
