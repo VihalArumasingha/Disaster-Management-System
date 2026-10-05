@@ -1,4 +1,4 @@
-import { ArrowLeft, Gift, Truck, Package, Heart, User, MapPin, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Gift, Truck, Package, Heart, User, MapPin, AlertTriangle, Search, Navigation, Clock, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 
@@ -6,6 +6,8 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000'
 const INVENTORY_API = `${API_BASE}/api/inventory`
 const TARGET_INVENTORY_API = `${API_BASE}/api/targetinventories`
 const DISASTERS_API = `${API_BASE}/api/activedisasters`
+
+const CENTERS_API = API_BASE + '/api/collectingcenters'
 
 const ITEM_OPTIONS = [
   { value: 'dry_rations', label: 'Dry rations', unit: 'packs' },
@@ -53,6 +55,61 @@ const parseTopNeeds = (topNeeds) =>
     // one entry per inventory key (a disaster only "needs" an item once)
     .filter((entry, index, list) => list.findIndex((e) => e.key === entry.key) === index)
 
+// Great-circle distance between two points, in km (haversine)
+const distanceKm = (lat1, lon1, lat2, lon2) => {
+  const toRad = (deg) => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// "0812234567" -> "+94 81 223 4567"; anything unexpected is returned as-is
+const formatPhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '')
+  if (digits.length === 10 && digits.startsWith('0')) {
+    return '+94 ' + digits.slice(1, 3) + ' ' + digits.slice(3, 6) + ' ' + digits.slice(6)
+  }
+  return phone || ''
+}
+
+// Google Maps deep-link for the "Get Directions" button
+const directionsUrl = (center) => {
+  const lat = Number(center.latitude)
+  const lng = Number(center.longitude)
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)
+  const destination = hasCoords
+    ? lat + ',' + lng
+    : [center.address, center.city].filter(Boolean).join(', ')
+  return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(destination)
+}
+
+// Sort centers by distance from the user (centers without coords go last)
+const sortNearby = (list, coords) => {
+  if (!coords) return list
+  return list
+    .map((center) => {
+      const lat = Number(center.latitude)
+      const lng = Number(center.longitude)
+      const distance =
+        Number.isFinite(lat) && Number.isFinite(lng)
+          ? distanceKm(coords.lat, coords.lng, lat, lng)
+          : null
+      return { ...center, distance }
+    })
+    .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+}
+
+const CATEGORY_STYLES = {
+  Food: 'border-amber-200 bg-amber-100 text-amber-700',
+  Medical: 'border-blue-200 bg-blue-100 text-blue-700',
+  Clothing: 'border-purple-200 bg-purple-100 text-purple-700',
+  Shelter: 'border-emerald-200 bg-emerald-100 text-emerald-700',
+  Water: 'border-cyan-200 bg-cyan-100 text-cyan-700'
+}
+
 const SEVERITY_STYLES = {
   Low: 'bg-emerald-100 text-emerald-700',
   Medium: 'bg-amber-100 text-amber-700',
@@ -73,6 +130,16 @@ export default function DonationMobileView() {
   const [targetInventory, setTargetInventory] = useState({})
   const [disasters, setDisasters] = useState([])
   const [loading, setLoading] = useState(true)
+  // Find nearby center panel
+  const [centersOpen, setCentersOpen] = useState(false)
+  const [centers, setCenters] = useState([])
+  const [centersLoading, setCentersLoading] = useState(false)
+  const [centersError, setCentersError] = useState('')
+  const [centerMode, setCenterMode] = useState('hometown')
+  const [hometown, setHometown] = useState('')
+  const [searchedCity, setSearchedCity] = useState('')
+  const [userPos, setUserPos] = useState(null)
+  const [geoStatus, setGeoStatus] = useState('')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -168,6 +235,105 @@ export default function DonationMobileView() {
   // While disasters are active, list what they actually need first —
   // ranked by how many disasters request the item, then by lowest coverage.
   const neededAnalytics = allAnalytics.filter((item) => item.neededBy.length > 0)
+  const loadCenters = async (q = '', coords = userPos) => {
+    try {
+      setCentersLoading(true)
+      setCentersError('')
+      const url = q ? CENTERS_API + '?q=' + encodeURIComponent(q) : CENTERS_API
+      const res = await fetch(url)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to load collecting centers.')
+      }
+      setCenters(sortNearby(data.centers || [], coords))
+      setSearchedCity(q)
+    } catch (err) {
+      setCenters([])
+      setCentersError(err.message || 'Could not reach the server. Please try again.')
+    } finally {
+      setCentersLoading(false)
+    }
+  }
+
+  const findNearMe = () => {
+    if (!navigator.geolocation) {
+      setGeoStatus('Location is not supported on this device. Try the hometown search instead.')
+      return
+    }
+    setGeoStatus('Getting your location...')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setUserPos(coords)
+        setGeoStatus('Sorted by distance from your current location.')
+        loadCenters('', coords)
+      },
+      () => {
+        setUserPos(null)
+        setGeoStatus('Location permission denied. Try the hometown search instead.')
+        loadCenters('')
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    )
+  }
+
+  const selectCenterMode = (mode) => {
+    setCenterMode(mode)
+    if (mode === 'nearme') findNearMe()
+  }
+
+  const handleHometownSearch = (event) => {
+    event.preventDefault()
+    loadCenters(hometown.trim())
+  }
+
+  const handleToggleCenters = () => {
+    if (!centersOpen) {
+      setCentersOpen(true)
+      if (centerMode === 'nearme') findNearMe()
+      else loadCenters(hometown.trim())
+    }
+    // Bring the panel (bottom of the page) into view when the button is tapped
+    setTimeout(() => {
+      document.getElementById('center-search')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+  }
+
+  // Small "Find center" button inside each disaster card: opens the panel
+  // pre-filtered with that disaster's city and scrolls to it.
+  const openCentersForCity = (city) => {
+    const q = (city || '').trim()
+    setCentersOpen(true)
+    setCenterMode('hometown')
+    if (q) setHometown(q)
+    loadCenters(q, userPos)
+    setTimeout(() => {
+      document.getElementById('center-search')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+  }
+
+  // Collapsed card shown at the bottom of the page while the panel is closed.
+  const findCentersButton = (
+    <button
+      type="button"
+      onClick={handleToggleCenters}
+      className="w-full rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50 p-4 text-left shadow-sm transition active:scale-[0.99]"
+    >
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white shadow-sm">
+          <MapPin size={20} />
+        </span>
+        <span className="flex-1">
+          <span className="block text-sm font-bold text-slate-900">Find nearby center</span>
+          <span className="block text-xs text-slate-500">
+            Search donation centers by city or use your location
+          </span>
+        </span>
+        <Navigation size={18} className="text-teal-600" />
+      </div>
+    </button>
+  )
+
   const inventoryAnalytics = (neededAnalytics.length > 0 ? neededAnalytics : allAnalytics)
     .slice()
     .sort((a, b) => {
@@ -339,6 +505,14 @@ export default function DonationMobileView() {
                     >
                       Support this cause
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => openCentersForCity(disaster.city)}
+                      className="mt-2 flex w-full items-center justify-center gap-1 rounded-xl border border-teal-200 bg-teal-50 py-1.5 text-xs font-bold text-teal-700 transition hover:bg-teal-100 active:scale-[0.98]"
+                    >
+                      <MapPin size={13} />
+                      Find center
+                    </button>
                   </div>
                 </article>
               )
@@ -389,6 +563,193 @@ export default function DonationMobileView() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* Find Nearby Center Section */}
+      <section id="center-search" className="px-5 py-4 pb-10">
+        {!centersOpen ? (
+          findCentersButton
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white">
+                  <MapPin size={17} />
+                </span>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Donation Centers</h2>
+                  <p className="text-[11px] text-slate-500">Find a center to drop off your donation</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCentersOpen(false)}
+                aria-label="Close center search"
+                className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Mode tabs */}
+            <div className="mb-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => selectCenterMode('hometown')}
+                className={
+                  'flex-1 rounded-full px-3 py-2 text-xs font-bold transition ' +
+                  (centerMode === 'hometown'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'border border-slate-200 bg-white text-slate-600')
+                }
+              >
+                Search by hometown
+              </button>
+              <button
+                type="button"
+                onClick={() => selectCenterMode('nearme')}
+                className={
+                  'flex-1 rounded-full px-3 py-2 text-xs font-bold transition ' +
+                  (centerMode === 'nearme'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'border border-slate-200 bg-white text-slate-600')
+                }
+              >
+                Near me
+              </button>
+            </div>
+
+            {centerMode === 'hometown' ? (
+              <form onSubmit={handleHometownSearch} className="mb-3">
+                <label htmlFor="hometown" className="mb-1 block text-xs font-bold text-slate-700">
+                  Hometown / city
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="hometown"
+                    type="text"
+                    value={hometown}
+                    onChange={(e) => setHometown(e.target.value)}
+                    placeholder="e.g., Matara"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                  <button
+                    type="submit"
+                    className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-700 active:scale-[0.97]"
+                  >
+                    <Search size={14} className="mr-1 inline-block -translate-y-px" />
+                    Search
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[11px] text-slate-500">
+                  Tip: type a city/name/address to filter the list.
+                </p>
+              </form>
+            ) : (
+              <div className="mb-3 rounded-xl border border-teal-200 bg-teal-50 p-3">
+                <p className="text-xs text-teal-800">
+                  {geoStatus ||
+                    (userPos
+                      ? 'Sorted by distance from your current location.'
+                      : 'Finding the centers closest to you...')}
+                </p>
+                <button
+                  type="button"
+                  onClick={findNearMe}
+                  className="mt-2 rounded-lg bg-teal-600 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-teal-700 active:scale-[0.97]"
+                >
+                  Use my location
+                </button>
+              </div>
+            )}
+
+            {/* Results */}
+            {centersLoading ? (
+              <div className="py-4 text-center text-sm text-slate-500">Loading centers...</div>
+            ) : centersError ? (
+              <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-xs font-medium text-red-600">
+                {centersError}
+              </div>
+            ) : centers.length === 0 ? (
+              <div className="py-4 text-center text-sm text-slate-500">
+                No collecting centers found
+                {searchedCity ? ' matching "' + searchedCity + '"' : ''}.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <p className="text-xs font-medium text-slate-500">
+                  {centers.length +
+                    (centers.length === 1 ? ' center' : ' centers') +
+                    (searchedCity ? ' matching "' + searchedCity + '"' : '')}
+                </p>
+                {centers.map((center) => (
+                  <article
+                    key={center._id}
+                    className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-bold text-slate-900">{center.name}</h3>
+                      {typeof center.distance === 'number' && (
+                        <span className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+                          {center.distance < 1
+                            ? Math.round(center.distance * 1000) + ' m'
+                            : center.distance.toFixed(1) + ' km'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-600">
+                      {center.address}
+                      {center.city ? ', ' + center.city : ''}
+                      {center.phone && (
+                        <>
+                          {' '}
+                          •{' '}
+                          <a
+                            href={'tel:' + center.phone}
+                            className="font-medium text-blue-600 underline"
+                          >
+                            {formatPhone(center.phone)}
+                          </a>
+                        </>
+                      )}
+                    </p>
+                    {center.openingHours && (
+                      <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
+                        <Clock size={12} />
+                        {center.openingHours}
+                      </p>
+                    )}
+                    {center.categories && center.categories.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {center.categories.map((cat) => (
+                          <span
+                            key={cat}
+                            className={
+                              'rounded-full border px-2 py-0.5 text-[11px] font-semibold ' +
+                              (CATEGORY_STYLES[cat] ||
+                                'border-slate-200 bg-slate-100 text-slate-600')
+                            }
+                          >
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <a
+                      href={directionsUrl(center)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-green-600 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-green-700 active:scale-[0.98]"
+                    >
+                      <Navigation size={14} />
+                      Get Directions
+                    </a>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </section>
