@@ -9,6 +9,7 @@ import NgoManagerLayout from '../../layouts/ngoManager/NgoManagerLayout'
 
 const DmcDashboardPage = lazy(() => import('../../roles/dmcOfficer/pages/DmcDashboardPage'))
 const EscalatedReportsPage = lazy(() => import('../../roles/dmcOfficer/pages/EscalatedReportsPage'))
+const HazardReviewQueue = lazy(() => import('../../roles/dmcOfficer/pages/HazardReviewQueue'))
 const WarningsPage = lazy(() => import('../../roles/dmcOfficer/pages/WarningsPage'))
 const CreateWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateWarningPage'))
 const ReviewWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/ReviewWarningPage'))
@@ -40,6 +41,8 @@ function AppRoutes() {
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={withLoading(<DmcDashboardPage />)} />
                 <Route path="escalated-reports" element={withLoading(<EscalatedReportsPage />)} />
+                <Route path="hazard-reviews" element={withLoading(<HazardReviewQueue />)} />
+                <Route path="hazard-reviews/clusters/:clusterId" element={withLoading(<HazardReviewQueue />)} />
                 <Route path="warnings" element={withLoading(<WarningsPage />)} />
                 <Route path="warnings/create" element={withLoading(<CreateWarningPage />)} />
                 <Route path="warnings/:warningId/edit" element={withLoading(<CreateWarningPage />)} />
