@@ -12,7 +12,10 @@ import dutyOfficerRoutes from './roles/dutyOfficer/routes/dutyOfficerRoutes.js'
 import ngoManagerRoutes from './roles/ngoManager/routes/ngoManagerRoutes.js'
 import weatherRoutes from './roles/weather/routes/weatherRoutes.js'
 import { receiveTextBeeWebhook } from './roles/webhooks/textBeeWebhookController.js'
-import { processPendingTextBeeWebhookEvents } from './roles/dmcOfficer/services/warningDeliveryService.js'
+import {
+    pollQueuedTextBeeDeliveries,
+    processPendingTextBeeWebhookEvents
+} from './roles/dmcOfficer/services/warningDeliveryService.js'
 
 import errorMiddleware from './middleware/errorHandling/errorMiddleware.js'
 
@@ -23,6 +26,9 @@ const app = express()
 connectDB().then(() => {
     processPendingTextBeeWebhookEvents().catch((error) => {
         console.error(`TextBee webhook recovery failed: ${error.message}`)
+    })
+    pollQueuedTextBeeDeliveries().catch((error) => {
+        console.error(`TextBee delivery-status recovery failed: ${error.message}`)
     })
 })
 
@@ -85,6 +91,13 @@ const textBeeEventWorker = setInterval(() => {
     })
 }, 5000)
 textBeeEventWorker.unref()
+
+const textBeeStatusWorker = setInterval(() => {
+    pollQueuedTextBeeDeliveries().catch((error) => {
+        console.error(`TextBee delivery-status polling failed: ${error.message}`)
+    })
+}, 5000)
+textBeeStatusWorker.unref()
 
 const PORT = process.env.PORT || 5000
 

@@ -55,7 +55,11 @@ function ReviewWarningPage() {
             const { data } = await api.post(`/dmcofficer/warnings/${warningId}/issue`)
             navigate('/dmcofficer/warnings', {
                 replace: true,
-                state: { issued: true, deliverySummary: data.deliverySummary }
+                state: {
+                    issued: true,
+                    warningId: data.warning._id,
+                    deliverySummary: data.deliverySummary
+                }
             })
         } catch (requestError) {
             setError(requestError.response?.data?.message || 'Could not issue warning.')

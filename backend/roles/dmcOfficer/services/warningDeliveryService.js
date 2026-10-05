@@ -501,6 +501,128 @@ export const processPendingTextBeeWebhookEvents = async () => {
     await Promise.all(events.map((event) => processTextBeeWebhookEvent(event._id)))
 }
 
+export const pollQueuedTextBeeDeliveries = async () => {
+    if (!process.env.TEXTBEE_API_KEY) return
+
+    const pollBefore = new Date(Date.now() - 10000)
+    const deliveries = await WarningDelivery.find({
+        'sms.status': { $in: ['queued', 'unknown'] },
+        'sms.providerBatchId': { $ne: '' },
+        $or: [
+            { 'sms.lastPolledAt': null },
+            { 'sms.lastPolledAt': { $lte: pollBefore } }
+        ]
+    })
+        .sort({ 'sms.acceptedAt': 1 })
+        .limit(20)
+
+    await Promise.all(deliveries.map(async (delivery) => {
+        const pollingClaim = await WarningDelivery.findOneAndUpdate(
+            {
+                _id: delivery._id,
+                'sms.status': { $in: ['queued', 'unknown'] },
+                $or: [
+                    { 'sms.lastPolledAt': null },
+                    { 'sms.lastPolledAt': { $lte: pollBefore } }
+                ]
+            },
+            { $set: { 'sms.lastPolledAt': new Date() } },
+            { new: true }
+        )
+        if (!pollingClaim) return
+        try {
+            const [warning, recipient] = await Promise.all([
+                Warning.findById(delivery.warningId),
+                User.findOne({
+                    _id: delivery.recipientId,
+                    role: { $in: CITIZEN_ROLE_VALUES }
+                }).select('_id')
+            ])
+            if (!warning || !recipient) return
+
+            const response = await axios.get(
+                `${getTextBeeApiBaseUrl()}/gateway/messages`,
+                {
+                    headers: {
+                        'x-api-key': process.env.TEXTBEE_API_KEY,
+                        Accept: 'application/json'
+                    },
+                    params: {
+                        direction: 'sent',
+                        smsBatchId: delivery.sms.providerBatchId,
+                        limit: 100
+                    },
+                    timeout: 10000
+                }
+            )
+            const messageData = response.data?.data
+            const messages = Array.isArray(messageData)
+                ? messageData
+                : Array.isArray(messageData?.messages)
+                    ? messageData.messages
+                    : null
+            if (!messages) {
+                throw new Error('TextBee message-history response has an unexpected format')
+            }
+            const message = messages.find((candidate) => (
+                (candidate.smsBatchId || candidate.batchId) === delivery.sms.providerBatchId
+            )) || (messages.length === 1 ? messages[0] : null)
+            if (!message) return
+
+            const providerStatus = String(
+                message.status || message.state || message.webhookEvent || ''
+            ).toLowerCase()
+            const messageStatus = ({
+                message_sent: 'sent',
+                message_delivered: 'delivered',
+                message_failed: 'failed',
+                unknown_state: 'unknown'
+            })[providerStatus] || providerStatus
+            if (!['sent', 'delivered', 'failed', 'unknown'].includes(messageStatus)) return
+            if (delivery.sms.status === 'delivered' || delivery.sms.status === 'failed') return
+
+            const updates = messageStatus === 'sent'
+                ? {
+                    'sms.status': 'sent',
+                    'sms.sentAt': message.sentAt ? new Date(message.sentAt) : new Date(),
+                    'sms.error': ''
+                }
+                : messageStatus === 'delivered'
+                    ? {
+                        'sms.status': 'delivered',
+                        'sms.sentAt': message.sentAt ? new Date(message.sentAt) : delivery.sms.sentAt,
+                        'sms.deliveredAt': message.deliveredAt ? new Date(message.deliveredAt) : new Date(),
+                        'sms.error': ''
+                    }
+                    : messageStatus === 'failed'
+                        ? {
+                            'sms.status': 'failed',
+                            'sms.error': [
+                                message.errorCode ? `Code ${message.errorCode}:` : '',
+                                message.errorMessage || 'TextBee reported SMS delivery failure'
+                            ].filter(Boolean).join(' ')
+                        }
+                        : {
+                            'sms.status': 'unknown',
+                            'sms.error': message.errorMessage || 'TextBee could not confirm the SMS status'
+                        }
+
+            const updatedDelivery = await WarningDelivery.findOneAndUpdate(
+                { _id: delivery._id, 'sms.status': { $in: ['queued', 'unknown'] } },
+                { $set: updates },
+                { new: true }
+            )
+            if (!updatedDelivery) return
+            if (messageStatus === 'failed') {
+                await sendSmsFailureFallback(updatedDelivery)
+            }
+            await refreshWarningDeliverySummary(updatedDelivery.warningId)
+        } catch (error) {
+            console.error(`TextBee status check failed for delivery ${delivery._id}: ${sanitizeProviderError(error.message)}`)
+        }
+    }))
+}
+
 export const verifyTextBeeWebhookSignature = (rawBody, signature) => {
     const signingSecret = process.env.TEXTBEE_WEBHOOK_SECRET
     if (!signingSecret || typeof signature !== 'string' || !Buffer.isBuffer(rawBody)) {

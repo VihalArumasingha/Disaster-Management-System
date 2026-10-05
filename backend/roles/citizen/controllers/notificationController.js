@@ -1,4 +1,5 @@
 import AlertNotification from '../../../models/AlertNotification.js'
+import Warning from '../../../models/Warning.js'
 
 export const listNotifications = async (req, res, next) => {
     try {
@@ -7,6 +8,23 @@ export const listNotifications = async (req, res, next) => {
             .limit(100)
             .lean()
         res.json({ success: true, notifications })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const listRecentWarnings = async (req, res, next) => {
+    try {
+        const warnings = await Warning.find({
+            recipientIds: req.user._id,
+            status: { $in: ['issued', 'partially_issued', 'delivery_failed'] }
+        })
+            .select('title severity hazardType message targetAreaIds issuedAt createdAt')
+            .populate('targetAreaIds', 'name areaType')
+            .sort({ issuedAt: -1, createdAt: -1 })
+            .limit(5)
+            .lean()
+        res.json({ success: true, warnings })
     } catch (error) {
         next(error)
     }
