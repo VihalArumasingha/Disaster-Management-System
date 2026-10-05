@@ -7,6 +7,7 @@ import {
     updateReport,
     deleteReport
 } from '../controllers/hazardReportController.js'
+import uploadMiddleware from '../../../middleware/upload/uploadMiddleware.js'
 
 import {
     validateCreateHazardReport,
@@ -15,11 +16,7 @@ import {
 
 const router = express.Router()
 
-router.post(
-    '/',
-    validateCreateHazardReport,
-    createReport
-)
+router.post('/', uploadMiddleware, validateCreateHazardReport, createReport)
 
 router.get(
     '/',

@@ -2,9 +2,17 @@ import {
     createHazardReport,
     getCitizenHazardReports,
     getCitizenHazardReportById,
+    getHazardReportByPhotoFilename,
     updateCitizenHazardReport,
     deleteCitizenHazardReport
 } from '../services/hazardReportService.js'
+import { unlink } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const uploadDirectory = fileURLToPath(
+    new URL('../../../uploads/hazard-reports/', import.meta.url)
+)
 
 export const createReport = async (
     req,
@@ -12,9 +20,16 @@ export const createReport = async (
     next
 ) => {
     try {
+        const reportData = { ...req.body }
+        if (req.file) {
+            reportData.photo = {
+                url: `/api/hazard-report-photos/${req.file.filename}`,
+                capturedAt: req.body.capturedAt
+            }
+        }
         const result = await createHazardReport(
             req.user._id,
-            req.body
+            reportData
         )
 
         res.status(201).json({
@@ -22,6 +37,29 @@ export const createReport = async (
             report: result.report,
             cluster: result.cluster
         })
+    } catch (error) {
+        if (req.file) {
+            await unlink(req.file.path).catch(() => {})
+        }
+        next(error)
+    }
+}
+
+export const getReportPhoto = async (req, res, next) => {
+    try {
+        if (!/^[\w-]+\.(jpg|png|webp|gif|avif|heic|heif)$/i.test(req.params.filename)) {
+            return res.status(404).json({ success: false, message: 'Hazard report photo not found' })
+        }
+
+        const report = await getHazardReportByPhotoFilename(req.params.filename)
+
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Hazard report photo not found' })
+        }
+
+        res.set('Cache-Control', 'private, max-age=3600')
+        res.set('X-Content-Type-Options', 'nosniff')
+        res.sendFile(path.join(uploadDirectory, req.params.filename))
     } catch (error) {
         next(error)
     }

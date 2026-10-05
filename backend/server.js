@@ -20,6 +20,8 @@ import {
 } from './roles/dmcOfficer/services/warningDeliveryService.js'
 
 import errorMiddleware from './middleware/errorHandling/errorMiddleware.js'
+import authenticate from './middleware/authentication/authMiddleware.js'
+import { getReportPhoto } from './roles/citizen/controllers/hazardReportController.js'
 
 dotenv.config()
 
@@ -79,6 +81,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes)
 
+app.get('/api/hazard-report-photos/:filename', authenticate, getReportPhoto)
 app.use('/api/citizen', citizenRoutes)
 app.use('/api/dmcofficer', dmcOfficerRoutes)
 app.use('/api/dutyofficer', dutyOfficerRoutes)

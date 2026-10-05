@@ -35,9 +35,21 @@ export const validateCreateHazardReport = (
     const {
         hazardType,
         description,
-        location,
         capturedAt
     } = req.body
+    let { location } = req.body
+
+    if (typeof location === 'string') {
+        try {
+            location = JSON.parse(location)
+            req.body.location = location
+        } catch {
+            return res.status(400).json({
+                success: false,
+                message: 'A valid GeoJSON Point location is required'
+            })
+        }
+    }
 
     if (!validateHazardType(hazardType)) {
         return res.status(400).json({
