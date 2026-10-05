@@ -4,7 +4,10 @@ import {
     getReviewQueue,
     getReviewCluster,
     verifyReport,
-    rejectReport
+    rejectReport,
+    checkEscalation,
+    escalateToDutyOfficer,
+    getClusterEscalation
 } from '../controllers/hazardReviewController.js'
 
 import {
@@ -26,6 +29,18 @@ router.get(
     getReviewCluster
 )
 
+router.get(
+    '/clusters/:clusterId/escalation',
+    validateClusterId,
+    getClusterEscalation
+)
+
+router.get(
+    '/clusters/:clusterId/escalation/evaluate',
+    validateClusterId,
+    checkEscalation
+)
+
 router.patch(
     '/reports/:reportId/verify',
     validateReportId,
@@ -37,6 +52,12 @@ router.patch(
     validateReportId,
     validateRejection,
     rejectReport
+)
+
+router.post(
+    '/clusters/:clusterId/escalate',
+    validateClusterId,
+    escalateToDutyOfficer
 )
 
 export default router
