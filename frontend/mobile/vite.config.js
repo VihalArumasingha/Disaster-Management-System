@@ -10,5 +10,11 @@ export default defineConfig({
 
     server: {
         port: 5174
+    },
+
+    resolve: {
+        alias: {
+            'leaflet/dist/leaflet.css': 'leaflet/dist/leaflet.css'
+        }
     }
 })
