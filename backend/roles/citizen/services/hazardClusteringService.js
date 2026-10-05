@@ -1,5 +1,8 @@
 import ReportCluster from '../../../models/ReportCluster.js'
 import HazardReport from '../../../models/HazardReport.js'
+import {
+    calculateClusterPriority
+} from './hazardPriorityService.js'
 
 const CLUSTER_RADIUS_METERS = 2000
 const CLUSTER_TIME_WINDOW_HOURS = 6
@@ -68,6 +71,13 @@ export const assignReportToCluster = async (report) => {
             status: 'active'
         })
 
+        const priority = calculateClusterPriority(cluster)
+
+        cluster.priorityScore = priority.priorityScore
+        cluster.priorityLevel = priority.priorityLevel
+
+        await cluster.save()
+
         report.clusterId = cluster._id
         await report.save()
 
@@ -84,14 +94,29 @@ export const assignReportToCluster = async (report) => {
     }).select('location capturedAt')
 
     existingCluster.reportIds.push(report._id)
-    existingCluster.reportCount = existingCluster.reportIds.length
-    existingCluster.center = calculateClusterCenter(reports)
+
+    existingCluster.reportCount =
+        existingCluster.reportIds.length
+
+    existingCluster.center =
+        calculateClusterCenter(reports)
+
     existingCluster.lastReportedAt = new Date(
         Math.max(
             existingCluster.lastReportedAt.getTime(),
             report.capturedAt.getTime()
         )
     )
+
+    const priority = calculateClusterPriority(
+        existingCluster
+    )
+
+    existingCluster.priorityScore =
+        priority.priorityScore
+
+    existingCluster.priorityLevel =
+        priority.priorityLevel
 
     await existingCluster.save()
 

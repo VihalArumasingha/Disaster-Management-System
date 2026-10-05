@@ -44,6 +44,24 @@ const reportClusterSchema = new mongoose.Schema(
             min: 0
         },
 
+        priorityScore: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 100
+        },
+
+        priorityLevel: {
+            type: String,
+            enum: [
+                'low',
+                'medium',
+                'high',
+                'critical'
+            ],
+            default: 'low'
+        },
+
         firstReportedAt: {
             type: Date,
             required: true
@@ -67,6 +85,7 @@ const reportClusterSchema = new mongoose.Schema(
 )
 
 reportClusterSchema.index({ center: '2dsphere' })
+
 reportClusterSchema.index({
     hazardType: 1,
     status: 1,
