@@ -2,6 +2,7 @@ import express from 'express'
 import authenticate from '../../../middleware/authentication/authMiddleware.js'
 import authorize from '../../../middleware/authorization/roleMiddleware.js'
 import { USER_ROLES } from '../../../utils/constants.js'
+import hazardReviewRoutes from './hazardReviewRoutes.js'
 import {
     openWeatherTile,
     editWarning,
@@ -23,6 +24,7 @@ router.use(authenticate, authorize(USER_ROLES.dmcofficer))
 
 router.get('/overview', overview)
 router.get('/profile', profile)
+router.use('/hazard-reviews', hazardReviewRoutes)
 router.get('/target-areas', targetAreas)
 router.post('/target-areas/preview', targetAreaPreview)
 router.post('/target-areas', saveTargetArea)
