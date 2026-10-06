@@ -1,58 +1,16 @@
 import {
     MapContainer,
     TileLayer,
-    Marker,
-    Circle,
     useMap,
     useMapEvents
 } from 'react-leaflet'
-import L from 'leaflet'
+
 import 'leaflet/dist/leaflet.css'
 import { useEffect } from 'react'
 
-const currentLocationIcon = L.divIcon({
-    className: '',
-    html: `
-        <div style="
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #2563eb;
-            border: 3px solid white;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.35);
-        "></div>
-    `,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9]
-})
+import CurrentLocationMarker from './CurrentLocationMarker'
+import HazardPin from './HazardPin'
 
-const hazardIcon = L.divIcon({
-    className: '',
-    html: `
-        <div style="
-            width: 32px;
-            height: 32px;
-            border-radius: 50% 50% 50% 0;
-            background: #dc2626;
-            border: 3px solid white;
-            transform: rotate(-45deg);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-            position: relative;
-        ">
-            <div style="
-                width: 9px;
-                height: 9px;
-                border-radius: 50%;
-                background: white;
-                position: absolute;
-                top: 8px;
-                left: 8px;
-            "></div>
-        </div>
-    `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32]
-})
 
 function MapClickHandler({ onPick }) {
     useMapEvents({
@@ -66,6 +24,7 @@ function MapClickHandler({ onPick }) {
 
     return null
 }
+
 
 function MapCenter({ location }) {
     const map = useMap()
@@ -81,6 +40,7 @@ function MapCenter({ location }) {
 
     return null
 }
+
 
 export default function HazardLocationMap({
     currentLocation,
@@ -102,50 +62,31 @@ export default function HazardLocationMap({
             scrollWheelZoom
             className="h-full w-full"
         >
+
+            {/* OpenStreetMap */}
             <TileLayer
                 attribution="&copy; OpenStreetMap contributors"
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
+            {/* User selects hazard location */}
             <MapClickHandler onPick={onPick} />
 
-            {currentLocation && (
-                <>
-                    <Marker
-                        position={[
-                            currentLocation.lat,
-                            currentLocation.lng
-                        ]}
-                        icon={currentLocationIcon}
-                    />
+            {/* Current GPS location */}
+            <CurrentLocationMarker
+                location={currentLocation}
+            />
 
-                    <Circle
-                        center={[
-                            currentLocation.lat,
-                            currentLocation.lng
-                        ]}
-                        radius={1000}
-                        pathOptions={{
-                            color: '#2563eb',
-                            fillOpacity: 0.05
-                        }}
-                    />
-                </>
-            )}
+            {/* Selected hazard location */}
+            <HazardPin
+                location={hazardLocation}
+            />
 
-            {hazardLocation && (
-                <Marker
-                    position={[
-                        hazardLocation.lat,
-                        hazardLocation.lng
-                    ]}
-                    icon={hazardIcon}
-                />
-            )}
-
+            {/* Keep map centered on selected location */}
             <MapCenter
                 location={hazardLocation || currentLocation}
             />
+
         </MapContainer>
     )
 }
