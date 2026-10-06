@@ -99,20 +99,23 @@ export default function EditVolunteer() {
 
     const fullNameRef = useRef(null)
 
-    /* ── operations (NGO active disasters) for the dropdown ─── */
+    /* ── relief-distribution operations for the dropdown ────── */
     const [operationList, setOperationList] = useState([])
     useEffect(() => {
         const ctrl = new AbortController()
-        fetch(`${API_BASE}/api/ngomanager/disasters`, {
+        fetch(`${API_BASE}/api/operations`, {
             credentials: 'include',
             signal: ctrl.signal
         })
             .then((res) => res.json())
             .then((data) => {
+                const list = Array.isArray(data?.operations)
+                    ? data.operations
+                    : Array.isArray(data?.data) ? data.data : []
                 setOperationList(
-                    (Array.isArray(data?.warnings) ? data.warnings : [])
-                        .filter((w) => w && w.title)
-                        .map((w) => ({ _id: w._id, name: w.title }))
+                    list
+                        .filter((o) => o && o.name)
+                        .map((o) => ({ _id: o._id, name: o.name }))
                 )
             })
             .catch(() => { /* dropdown stays empty */ })
