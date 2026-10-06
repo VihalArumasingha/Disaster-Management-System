@@ -26,6 +26,9 @@ const ActiveDisasterPage = lazy(() => import('../../components/NGODashboard/acti
 const DisasterFormPage = lazy(() => import('../../components/NGODashboard/DisasterForm.jsx'))
 const CollectingCentersPage = lazy(() => import('../../components/NGODashboard/center.jsx'))
 const InventoryPage = lazy(() => import('../../components/NGODashboard/inventory page.jsx'))
+const VolunteerPage = lazy(() => import('../../components/NGODashboard/volunteerpage.jsx'))
+const EditVolunteerPage = lazy(() => import('../../components/NGODashboard/editvolunteer.jsx'))
+
 
 const withLoading = (page) => (
     <Suspense fallback={<div className="px-5 py-20 text-center text-slate-600">Loading page…</div>}>
@@ -73,6 +76,9 @@ function AppRoutes() {
                 <Route path="disaster/:disasterId/edit" element={withLoading(<DisasterFormPage />)} />
                 <Route path="collecting-centers" element={withLoading(<CollectingCentersPage />)} />
                 <Route path="relief-quantities" element={withLoading(<InventoryPage />)} />
+                <Route path="volunteers" element={withLoading(<VolunteerPage />)} />
+                <Route path="volunteers/new" element={withLoading(<EditVolunteerPage />)} />
+                <Route path="volunteers/:volunteerId/edit" element={withLoading(<EditVolunteerPage />)} />
             </Route>
 
             <Route
