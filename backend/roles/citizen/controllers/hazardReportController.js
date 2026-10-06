@@ -6,6 +6,7 @@ import {
     updateCitizenHazardReport,
     deleteCitizenHazardReport
 } from '../services/hazardReportService.js'
+
 import { unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,12 +22,14 @@ export const createReport = async (
 ) => {
     try {
         const reportData = { ...req.body }
+
         if (req.file) {
             reportData.photo = {
                 url: `/api/hazard-report-photos/${req.file.filename}`,
                 capturedAt: req.body.capturedAt
             }
         }
+
         const result = await createHazardReport(
             req.user._id,
             reportData
@@ -38,28 +41,68 @@ export const createReport = async (
             cluster: result.cluster
         })
     } catch (error) {
+        /*
+         * Duplicate reports are an expected application
+         * response, not a server failure.
+         */
+        if (error.code === 'DUPLICATE_HAZARD_REPORT') {
+            if (req.file) {
+                await unlink(req.file.path).catch(() => {})
+            }
+
+            return res.status(409).json({
+                success: false,
+                isDuplicate: true,
+                existingReportId: error.existingReportId,
+                message: 'A similar report was recently submitted.'
+            })
+        }
+
         if (req.file) {
             await unlink(req.file.path).catch(() => {})
         }
+
         next(error)
     }
 }
 
-export const getReportPhoto = async (req, res, next) => {
+export const getReportPhoto = async (
+    req,
+    res,
+    next
+) => {
     try {
-        if (!/^[\w-]+\.(jpg|png|webp|gif|avif|heic|heif)$/i.test(req.params.filename)) {
-            return res.status(404).json({ success: false, message: 'Hazard report photo not found' })
+        if (
+            !/^[\w-]+\.(jpg|png|webp|gif|avif|heic|heif)$/i.test(
+                req.params.filename
+            )
+        ) {
+            return res.status(404).json({
+                success: false,
+                message: 'Hazard report photo not found'
+            })
         }
 
-        const report = await getHazardReportByPhotoFilename(req.params.filename)
+        const report = await getHazardReportByPhotoFilename(
+            req.params.filename
+        )
 
         if (!report) {
-            return res.status(404).json({ success: false, message: 'Hazard report photo not found' })
+            return res.status(404).json({
+                success: false,
+                message: 'Hazard report photo not found'
+            })
         }
 
         res.set('Cache-Control', 'private, max-age=3600')
         res.set('X-Content-Type-Options', 'nosniff')
-        res.sendFile(path.join(uploadDirectory, req.params.filename))
+
+        res.sendFile(
+            path.join(
+                uploadDirectory,
+                req.params.filename
+            )
+        )
     } catch (error) {
         next(error)
     }
