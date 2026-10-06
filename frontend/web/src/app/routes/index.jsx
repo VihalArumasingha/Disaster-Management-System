@@ -28,6 +28,7 @@ const CollectingCentersPage = lazy(() => import('../../components/NGODashboard/c
 const InventoryPage = lazy(() => import('../../components/NGODashboard/inventory page.jsx'))
 const VolunteerPage = lazy(() => import('../../components/NGODashboard/volunteerpage.jsx'))
 const EditVolunteerPage = lazy(() => import('../../components/NGODashboard/editvolunteer.jsx'))
+const ReliefDistributionPage = lazy(() => import('../../components/NGODashboard/distributionpage.jsx'))
 
 
 const withLoading = (page) => (
@@ -79,6 +80,7 @@ function AppRoutes() {
                 <Route path="volunteers" element={withLoading(<VolunteerPage />)} />
                 <Route path="volunteers/new" element={withLoading(<EditVolunteerPage />)} />
                 <Route path="volunteers/:volunteerId/edit" element={withLoading(<EditVolunteerPage />)} />
+                <Route path="relief-distribution" element={withLoading(<ReliefDistributionPage />)} />
             </Route>
 
             <Route
