@@ -30,6 +30,7 @@ const VolunteerPage = lazy(() => import('../../components/NGODashboard/volunteer
 const EditVolunteerPage = lazy(() => import('../../components/NGODashboard/editvolunteer.jsx'))
 const ReliefDistributionPage = lazy(() => import('../../components/NGODashboard/distributionpage.jsx'))
 const NgoPastPage = lazy(() => import('../../components/NGODashboard/ngopast.jsx'))
+const OverviewPage = lazy(() => import('../../components/NGODashboard/OverviewPage.jsx'))
 
 
 const withLoading = (page) => (
@@ -69,7 +70,7 @@ function AppRoutes() {
             {/* NGO Manager — nested layout */}
             <Route path="/ngomanager" element={<NgoManagerLayout />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<RoleDashboard role={USER_ROLES.ngomanager} />} />
+                <Route path="dashboard" element={withLoading(<OverviewPage />)} />
                 <Route path="donations" element={withLoading(<DonationPage />)} />
                 <Route path="donations/new" element={withLoading(<DonationFormPage />)} />
                 <Route path="donations/:donationId/edit" element={withLoading(<EditDonationPage />)} />
