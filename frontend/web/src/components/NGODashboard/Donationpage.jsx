@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     RefreshCw, RotateCcw, FileText, Users, ExternalLink,
-    Search, ChevronDown, MessageCircle, Image
+    Search, ChevronDown, MessageCircle, Image, X, Pencil
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -54,6 +54,52 @@ function Select({ icon, label, value, onChange, options }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════ */
+/* ── Slip image URL (Cloudinary absolute URL, or legacy local path) ─ */
+const slipUrl = (p) =>
+    /^https?:\/\//i.test(p) ? p : `${API_BASE}/${String(p).replace(/\\/g, '/')}`
+
+/* ── Slip thumbnail → opens the lightbox ────────────────────────── */
+function SlipCell({ donation, onPreview }) {
+    const [failed, setFailed] = useState(false)
+    const url = slipUrl(donation.evidencePath)
+
+    // Image didn't load (e.g., legacy local file no longer served) → plain link
+    if (failed) {
+        return (
+            <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                title="Open slip"
+                className="flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
+            >
+                <Image size={12} /> View
+            </a>
+        )
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={() => onPreview({ url, name: donation.donorName || donation.donorEmail || 'Donor' })}
+            title="View slip"
+            className="group relative block h-10 w-10 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        >
+            <img
+                src={url}
+                alt={`Slip — ${donation.donorName || 'donation'}`}
+                loading="lazy"
+                onError={() => setFailed(true)}
+                className="h-full w-full object-cover transition group-hover:scale-110"
+            />
+            <span className="absolute inset-0 hidden items-center justify-center bg-slate-900/50 group-hover:flex">
+                <Image size={14} className="text-white" />
+            </span>
+        </button>
+    )
+}
+
+
 export default function DonationPage() {
     const nav = useNavigate()
 
@@ -70,6 +116,17 @@ export default function DonationPage() {
     const [filterCurrency, setFilterCurrency] = useState('')
     const [perPage, setPerPage]         = useState('10')
     const [page, setPage]               = useState(1)
+
+    /* slip lightbox: { url, name } or null */
+    const [preview, setPreview]         = useState(null)
+
+    // Close slip lightbox on Escape
+    useEffect(() => {
+        if (!preview) return
+        const onKey = e => { if (e.key === 'Escape') setPreview(null) }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [preview])
 
     const searchTimeout = useRef(null)
 
@@ -231,7 +288,7 @@ export default function DonationPage() {
                         <Users size={15} /> Top donors
                     </button>
                     <button
-                        onClick={() => nav('/donation/fundraise')}
+                        onClick={() => nav('/ngomanager/donations/new')}
                         className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
                     >
                         <ExternalLink size={15} /> Open Donation Form
@@ -425,18 +482,9 @@ export default function DonationPage() {
 
                                         {/* Slip */}
                                         <td className="px-4 py-3">
-                                            {d.evidencePath ? (
-                                                <a
-                                                    href={`${API_BASE}/${d.evidencePath.replace(/\\/g, '/')}`}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
-                                                >
-                                                    <Image size={12} /> View
-                                                </a>
-                                            ) : (
-                                                <span className="text-slate-300 text-xs">—</span>
-                                            )}
+                                            {d.evidencePath
+                                                ? <SlipCell donation={d} onPreview={setPreview} />
+                                                : <span className="text-slate-300 text-xs">—</span>}
                                         </td>
 
                                         {/* Status */}
@@ -463,18 +511,28 @@ export default function DonationPage() {
 
                                         {/* Action */}
                                         <td className="px-4 py-3">
-                                            {waUrl ? (
-                                                <a
-                                                    href={waUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="flex items-center gap-1 rounded-lg bg-green-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-600"
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => nav(`/ngomanager/donations/${d._id}/edit`)}
+                                                    title="Edit donation"
+                                                    className="flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700"
                                                 >
-                                                    <MessageCircle size={12} /> WhatsApp
-                                                </a>
-                                            ) : (
-                                                <span className="text-slate-300 text-xs">—</span>
-                                            )}
+                                                    <Pencil size={12} /> Edit
+                                                </button>
+                                                {waUrl ? (
+                                                    <a
+                                                        href={waUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="flex items-center gap-1 rounded-lg bg-green-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-600"
+                                                    >
+                                                        <MessageCircle size={12} /> WhatsApp
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-300 text-xs">—</span>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 )
@@ -523,6 +581,54 @@ export default function DonationPage() {
                     </div>
                 )}
             </div>
+
+            {/* ── Slip lightbox ── */}
+            {preview && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4"
+                    onClick={() => setPreview(null)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Donation slip preview"
+                >
+                    <div
+                        className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+                            <div>
+                                <p className="text-sm font-semibold text-slate-800">Donation slip</p>
+                                <p className="text-xs text-slate-500">{preview.name}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={preview.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                >
+                                    Open original
+                                </a>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreview(null)}
+                                    aria-label="Close preview"
+                                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="grid max-h-[75vh] place-items-center overflow-auto bg-slate-100 p-4">
+                            <img
+                                src={preview.url}
+                                alt="Donation slip"
+                                className="max-h-[70vh] w-auto rounded-lg object-contain"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
