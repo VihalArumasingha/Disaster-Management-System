@@ -17,7 +17,9 @@ export default function OperationModal({ open, initial, onClose, onSaved }) {
     const [requiredVolunteers, setRequiredVolunteers] = useState(
         initial?.requiredVolunteers != null ? String(initial.requiredVolunteers) : ''
     )
-    const [status, setStatus] = useState(initial?.status === 'ACTIVE' ? 'ACTIVE' : 'PENDING')
+    const [status, setStatus] = useState(
+        initial?.status === 'ACTIVE' || initial?.status === 'COMPLETED' ? initial.status : 'PENDING'
+    )
     const [saving, setSaving] = useState(false)
     const [err, setErr] = useState('')
 
@@ -159,6 +161,7 @@ export default function OperationModal({ open, initial, onClose, onSaved }) {
                             >
                                 <option value="PENDING">Pending</option>
                                 <option value="ACTIVE">Active</option>
+                                <option value="COMPLETED">Completed</option>
                             </select>
                         </div>
                     </div>

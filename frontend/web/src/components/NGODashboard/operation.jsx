@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
     Search, Plus, Pencil, Trash2, RefreshCw, FileDown, Users, UserCheck,
-    MapPin, ChevronRight, RotateCcw
+    MapPin, ChevronRight, RotateCcw, X, Phone, MessageCircle
 } from 'lucide-react'
 import OperationModal from './editoperation.jsx'
 import { fetchVolunteers } from './volunteerpage.jsx'
@@ -40,6 +40,79 @@ const fmtDate = (iso) => {
         : d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
 }
 
+/** Badge colors for ACTIVE / PENDING / COMPLETED operation statuses. */
+const statusBadge = (status) => {
+    if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-700'
+    if (status === 'COMPLETED') return 'bg-blue-100 text-blue-700'
+    return 'bg-amber-100 text-amber-700'
+}
+const statusLabel = (status) => {
+    if (status === 'ACTIVE') return 'Active'
+    if (status === 'COMPLETED') return 'Completed'
+    return 'Pending'
+}
+
+/** WhatsApp deep-link for a Sri Lankan phone number. */
+const waHref = (phone, name) => {
+    if (!phone) return null
+    let n = String(phone).replace(/[^\d+]/g, '')
+    if (/^0\d/.test(n)) n = `+94${n.slice(1)}`
+    const digits = n.replace(/\D/g, '')
+    if (digits.length < 9) return null
+    const msg = `Hello ${name || 'there'}, SafeZone would like to connect with you about your volunteer assignment.`
+    return `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`
+}
+
+/** One volunteer card inside the Assigned-Volunteers popup. */
+function VolunteerCard({ v }) {
+    const wa = waHref(v.whatsapp || v.phone, v.fullName)
+    const assignedDate = v.assignment?.date ? fmtDate(`${v.assignment.date}T00:00:00`) : '—'
+    return (
+        <li className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-bold text-slate-800">{v.fullName}</p>
+                <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${v.volunteerType === 'team' ? 'bg-blue-600 text-white' : 'bg-emerald-500 text-white'}`}>
+                    {v.volunteerType === 'team' ? 'Team Lead' : 'Individual'}
+                </span>
+            </div>
+            <dl className="mt-3 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                    <dt className="font-semibold text-slate-500">Team/Group:</dt>
+                    <dd className="truncate text-slate-700">{v.group || v.fullName}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                    <dt className="font-semibold text-slate-500">Contact:</dt>
+                    <dd className="font-semibold text-blue-600">{v.phone || '—'}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                    <dt className="font-semibold text-slate-500">Assigned:</dt>
+                    <dd className="text-slate-700">{assignedDate}</dd>
+                </div>
+            </dl>
+            <div className="mt-3 flex gap-2">
+                {v.phone ? (
+                    <a href={`tel:${v.phone}`} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700">
+                        <Phone size={13} /> Call
+                    </a>
+                ) : (
+                    <span className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold text-slate-500">
+                        <Phone size={13} /> Call
+                    </span>
+                )}
+                {wa ? (
+                    <a href={wa} target="_blank" rel="noreferrer" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">
+                        <MessageCircle size={13} /> WhatsApp
+                    </a>
+                ) : (
+                    <span className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold text-slate-500">
+                        <MessageCircle size={13} /> WhatsApp
+                    </span>
+                )}
+            </div>
+        </li>
+    )
+}
+
 /* ══════════════════════════════════════════════════════════════ */
 /* ── Distribution Operations section (top half of the page) ──── */
 /* ══════════════════════════════════════════════════════════════ */
@@ -59,8 +132,9 @@ export default function OperationsSection() {
     const [modalOpen, setModalOpen] = useState(false)
     const [editing, setEditing] = useState(null)
 
-    /* timeline / map selection */
+    /* timeline / map selection + volunteers modal */
     const [selectedId, setSelectedId] = useState(null)
+    const [viewOp, setViewOp] = useState(null)
 
     /* ── load operations + volunteers from the API ─────────── */
     useEffect(() => {
@@ -82,16 +156,24 @@ export default function OperationsSection() {
         return () => ctrl.abort()
     }, [reloadKey])
 
-    /* assigned volunteers per operation name */
+    /* assigned volunteers per operation name (lists, not just counts) */
     const assignedByName = useMemo(() => {
         const map = new Map()
         for (const v of volunteers) {
             if (v.assignment?.status !== 'ASSIGNED') continue
             const key = v.operationName || v.assignment?.operationName || ''
-            if (key) map.set(key, (map.get(key) || 0) + 1)
+            if (!key) continue
+            if (!map.has(key)) map.set(key, [])
+            map.get(key).push(v)
         }
         return map
     }, [volunteers])
+
+    const assignedCountByName = useMemo(() => {
+        const map = new Map()
+        for (const [k, list] of assignedByName) map.set(k, list.length)
+        return map
+    }, [assignedByName])
 
     const filtered = useMemo(() => {
         const needle = q.trim().toLowerCase()
@@ -109,12 +191,18 @@ export default function OperationsSection() {
         const active = operations.filter(o => o.status === 'ACTIVE').length
         const needed = operations.reduce((sum, o) => sum + (o.requiredVolunteers || 0), 0)
         const assigned = operations.reduce(
-            (sum, o) => sum + (assignedByName.get(o.name) || 0),
+            (sum, o) => sum + (assignedCountByName.get(o.name) || 0),
             0
         )
         const locations = new Set(operations.map(o => o.location).filter(Boolean)).size
         return { active, needed, assigned, locations }
-    }, [operations, assignedByName])
+    }, [operations, assignedCountByName])
+
+    /* every distribution plan shown as an overview box, ACTIVE first */
+    const overviewOps = useMemo(() => {
+        const rank = (s) => (s === 'ACTIVE' ? 0 : s === 'PENDING' ? 1 : 2)
+        return [...operations].sort((a, b) => rank(a.status) - rank(b.status))
+    }, [operations])
 
     const selected =
         operations.find(o => o.id === selectedId) ||
@@ -124,11 +212,11 @@ export default function OperationsSection() {
 
     const assignedVolunteers = useMemo(() => {
         if (!selected) return []
-        return volunteers.filter(v =>
-            v.assignment?.status === 'ASSIGNED' &&
-            (v.operationName || v.assignment?.operationName) === selected.name
-        )
-    }, [volunteers, selected])
+        return assignedByName.get(selected.name) || []
+    }, [assignedByName, selected])
+
+    /* volunteers for the modal opened from an Operation Overview box */
+    const modalVolunteers = viewOp ? (assignedByName.get(viewOp.name) || []) : []
 
     const refresh = () => {
         setRefreshing(true)
@@ -189,7 +277,7 @@ export default function OperationsSection() {
                 o.name,
                 o.location || '',
                 o.requiredVolunteers || 0,
-                assignedByName.get(o.name) || 0,
+                assignedCountByName.get(o.name) || 0,
                 o.status,
                 o.createdAt ? new Date(o.createdAt).toLocaleDateString() : ''
             ])
@@ -291,6 +379,7 @@ export default function OperationsSection() {
                     <option value="">All statuses</option>
                     <option value="ACTIVE">Active</option>
                     <option value="PENDING">Pending</option>
+                    <option value="COMPLETED">Completed</option>
                 </select>
                 <button
                     type="button"
@@ -322,7 +411,7 @@ export default function OperationsSection() {
                             </tr>
                         )}
                         {!loading && filtered.map(op => {
-                            const assigned = assignedByName.get(op.name) || 0
+                            const assigned = assignedCountByName.get(op.name) || 0
                             const required = op.requiredVolunteers || 0
                             const remaining = Math.max(required - assigned, 0)
                             return (
@@ -344,13 +433,9 @@ export default function OperationsSection() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <span
-                                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                                op.status === 'ACTIVE'
-                                                    ? 'bg-emerald-100 text-emerald-700'
-                                                    : 'bg-amber-100 text-amber-700'
-                                            }`}
+                                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold uppercase ${statusBadge(op.status)}`}
                                         >
-                                            {op.status === 'ACTIVE' ? 'Active' : 'Pending'}
+                                            {statusLabel(op.status)}
                                         </span>
                                     </td>
                                     <td className="px-4 py-3">
@@ -480,7 +565,52 @@ export default function OperationsSection() {
                 </div>
             </div>
 
-            {/* assigned volunteers */}
+            {/* ── Operation Overview: every distribution plan box + its volunteers ── */}
+            <div>
+                <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+                    Operation Overview
+                </h2>
+                {loading ? (
+                    <p className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
+                        Loading operations…
+                    </p>
+                ) : overviewOps.length === 0 ? (
+                    <p className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
+                        No distribution plans yet — create one with “New Operation”.
+                    </p>
+                ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {overviewOps.map(op => {
+                            const list = assignedByName.get(op.name) || []
+                            return (
+                                <div key={op.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <h3 className="text-base font-bold text-slate-800">{op.name}</h3>
+                                        <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${statusBadge(op.status)}`}>
+                                            {statusLabel(op.status)}
+                                        </span>
+                                    </div>
+                                    <p className="mt-1 text-xs text-slate-500">{op.location || 'No location recorded'}</p>
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setViewOp(op)}
+                                            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
+                                        >
+                                            <Users size={13} /> View Volunteers ({list.length})
+                                        </button>
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700">
+                                            <UserCheck size={12} /> {list.length} Assigned
+                                        </span>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* assigned volunteers (selected operation timeline context) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
@@ -534,6 +664,52 @@ export default function OperationsSection() {
                     onClose={() => setModalOpen(false)}
                     onSaved={applySaved}
                 />
+            )}
+
+            {/* volunteers popup for an Operation Overview box */}
+            {viewOp && (
+                <div
+                    className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`Assigned volunteers for ${viewOp.name}`}
+                    onClick={() => setViewOp(null)}
+                >
+                    <div
+                        className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-2xl bg-slate-50 shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+                            <h2 className="text-lg font-bold text-slate-800">
+                                Assigned Volunteers
+                                <span className="ml-2 text-sm font-semibold text-slate-400">
+                                    {viewOp.name} · {modalVolunteers.length}
+                                </span>
+                            </h2>
+                            <button
+                                type="button"
+                                onClick={() => setViewOp(null)}
+                                aria-label="Close assigned volunteers"
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="max-h-[calc(85vh-73px)] overflow-y-auto p-5">
+                            {modalVolunteers.length === 0 ? (
+                                <p className="py-10 text-center text-sm text-slate-500">
+                                    No volunteers assigned yet. Assign them from Volunteers and Assignments page.
+                                </p>
+                            ) : (
+                                <ul className="grid gap-4 sm:grid-cols-2">
+                                    {modalVolunteers.map(v => (
+                                        <VolunteerCard key={v.id} v={v} />
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
         </section>
     )
