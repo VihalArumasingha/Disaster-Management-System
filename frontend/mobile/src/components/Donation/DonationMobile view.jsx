@@ -1,6 +1,8 @@
 import { ArrowLeft, Gift, Truck, Package, Heart, User, MapPin, AlertTriangle, Search, Navigation, Clock, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import DistributionPlanModal from './DistributionPlanModal'
+import NgoPastHighlights from './NgoPastHighlights'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000'
 const INVENTORY_API = `${API_BASE}/api/inventory`
@@ -8,6 +10,9 @@ const TARGET_INVENTORY_API = `${API_BASE}/api/targetinventories`
 const DISASTERS_API = `${API_BASE}/api/activedisasters`
 
 const CENTERS_API = API_BASE + '/api/collectingcenters'
+const OPERATIONS_API = `${API_BASE}/api/operations`
+const VOLUNTEERS_API = `${API_BASE}/api/volunteers`
+const DISTRIBUTION_RECORDS_API = `${API_BASE}/api/distributionrecords`
 
 const ITEM_OPTIONS = [
   { value: 'dry_rations', label: 'Dry rations', unit: 'packs' },
@@ -140,20 +145,34 @@ export default function DonationMobileView() {
   const [searchedCity, setSearchedCity] = useState('')
   const [userPos, setUserPos] = useState(null)
   const [geoStatus, setGeoStatus] = useState('')
+  const [planOpen, setPlanOpen] = useState(false)
+  const [operations, setOperations] = useState([])
+  const [activeOperation, setActiveOperation] = useState(null)
+  const [planVolunteers, setPlanVolunteers] = useState([])
+  const [planVolunteersLoading, setPlanVolunteersLoading] = useState(false)
+  const [distributionRecords, setDistributionRecords] = useState([])
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [inventoryRes, targetRes, disastersRes] = await Promise.all([
+        const [inventoryRes, targetRes, disastersRes, distRecordsRes] = await Promise.all([
           fetch(INVENTORY_API),
           fetch(TARGET_INVENTORY_API),
-          fetch(DISASTERS_API)
+          fetch(DISASTERS_API),
+          fetch(DISTRIBUTION_RECORDS_API).catch(() => null)
         ])
 
         // Active disasters are non-fatal: the rest of the page still works
         if (disastersRes.ok) {
           const disastersData = await disastersRes.json()
+        let distRecordsData = { records: [] }
+        try {
+          if (distRecordsRes) distRecordsData = await distRecordsRes.json()
+        } catch { distRecordsData = { records: [] } }
+        setDistributionRecords(
+          Array.isArray(distRecordsData.records) ? distRecordsData.records : []
+        )
           setDisasters(Array.isArray(disastersData.disasters) ? disastersData.disasters : [])
         } else {
           console.error('Failed to fetch active disasters:', disastersRes.status)
@@ -310,6 +329,39 @@ export default function DonationMobileView() {
     setTimeout(() => {
       document.getElementById('center-search')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 80)
+  }
+
+  // Today's Progress — live from /api/distributionrecords (Relief Distribution page)
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const todayRecord = distributionRecords.find((r) => String(r.date || '').slice(0, 10) === todayKey)
+  const todayFamilies = Number(todayRecord?.familiesAssisted) || 0
+  const todayResources = Number(todayRecord?.resourcesDistributed) || 0
+  const totalFamiliesAllTime = distributionRecords.reduce(
+    (sum, r) => sum + (Number(r.familiesAssisted) || 0),
+    0
+  )
+  const todayOverallPct = totalFamiliesAllTime > 0
+    ? Math.min(100, Math.round((todayFamilies / totalFamiliesAllTime) * 100))
+    : (todayFamilies > 0 || todayResources > 0 ? 100 : 0)
+
+  const inventoryByKey = {}
+  allAnalytics.forEach((a) => { inventoryByKey[a.value] = a.have })
+
+  const openDistributionPlan = async () => {
+    setPlanOpen(true)
+    setPlanVolunteersLoading(true)
+    try {
+      const [opsRes, volsRes] = await Promise.all([fetch(OPERATIONS_API), fetch(VOLUNTEERS_API)])
+      const opsData = await opsRes.json().catch(() => ({}))
+      const volsData = await volsRes.json().catch(() => ({}))
+      const ops = Array.isArray(opsData.operations) ? opsData.operations : (Array.isArray(opsData.data) ? opsData.data : [])
+      const rank = (s) => (s === 'ACTIVE' ? 0 : s === 'PENDING' ? 1 : 2)
+      ops.sort((a, b) => rank(String(a.status || '').toUpperCase()) - rank(String(b.status || '').toUpperCase()))
+      setOperations(ops)
+      setActiveOperation((prev) => prev || ops[0] || null)
+      const vols = Array.isArray(volsData.volunteers) ? volsData.volunteers : (Array.isArray(volsData.data) ? volsData.data : [])
+      setPlanVolunteers(vols)
+    } catch (e) { console.error('Failed to load distribution plan:', e) } finally { setPlanVolunteersLoading(false) }
   }
 
   // Collapsed card shown at the bottom of the page while the panel is closed.
@@ -521,6 +573,19 @@ export default function DonationMobileView() {
         )}
       </section>
 
+      {/* Today's Progress + Distribution plan button */}
+      <section className="px-5 py-2">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-100 to-sky-100 p-4 shadow-sm">
+          <h2 className="text-base font-extrabold text-slate-900">Today&apos;s Progress</h2>
+          <p className="text-xs text-slate-500">In progress</p>
+          <p className="mt-2 text-sm text-slate-700">Families assisted: <span className="font-bold text-slate-900">{todayFamilies}</span></p>
+          <p className="mt-1 text-sm text-slate-700">Resources distributed: <span className="font-bold text-slate-900">{todayResources}</span></p>
+          <p className="mt-1 text-sm text-slate-700">Overall progress <span className="font-bold text-slate-900">{todayOverallPct}%</span></p>
+          <button type="button" onClick={openDistributionPlan} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98]">
+            <Package size={15} /> Distribution plan
+          </button>
+        </div>
+      </section>
       {/* Most Needed Now Section */}
       <section id="donate-section" className="px-5 py-4">
         <div className="mb-3 flex items-end justify-between gap-2">
@@ -753,6 +818,12 @@ export default function DonationMobileView() {
           </div>
         )}
       </section>
+
+      {/* NGO Past activity - bottom of page */}
+      <section className="px-5 pb-10"><NgoPastHighlights /></section>
+      {planOpen && (
+        <DistributionPlanModal operation={activeOperation || operations[0] || null} operations={operations} inventoryByKey={inventoryByKey} volunteers={planVolunteers} volunteersLoading={planVolunteersLoading} onSelect={setActiveOperation} onClose={() => setPlanOpen(false)} />
+      )}
     </div>
   )
 }

@@ -21,6 +21,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from './authContext'
+import NgoPastHighlights from './components/Donation/NgoPastHighlights'
 import { CITIZEN_ROLE } from './constants/roles'
 import api from './services/api'
 import NearbyHazardsPanel from './NearbyHazardsPanel'
@@ -422,7 +423,6 @@ function CitizenDashboard() {
                     ))}
                 </div>
             </section>
-
             <section className="mx-5 mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between px-4 py-4">
                     <h2 className="text-lg font-bold text-slate-950">Recent warnings</h2>
@@ -492,6 +492,11 @@ function CitizenDashboard() {
                     </div>
                 </div>
             </section>
+
+            {/* NGO Past activity - bottom of page */}
+            <div className="px-5 pb-8">
+                <NgoPastHighlights />
+            </div>
         </>
     )
 
