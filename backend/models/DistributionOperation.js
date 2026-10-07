@@ -21,7 +21,7 @@ const distributionOperationSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ['ACTIVE', 'PENDING'],
+            enum: ['ACTIVE', 'PENDING', 'COMPLETED'],
             default: 'PENDING',
             uppercase: true
         },

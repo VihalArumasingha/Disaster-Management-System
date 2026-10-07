@@ -32,7 +32,7 @@ function parseOperationBody(body) {
         requiredVolunteers: toCount(body.requiredVolunteers, 0)
     }
     const status = String(body.status ?? '').trim().toUpperCase()
-    if (status === 'ACTIVE' || status === 'PENDING') op.status = status
+    if (status === 'ACTIVE' || status === 'PENDING' || status === 'COMPLETED') op.status = status
     if (body.stage !== undefined && body.stage !== null && body.stage !== '') {
         op.stage = Math.min(6, toCount(body.stage, 0))
     }
@@ -48,7 +48,7 @@ function applyOperationBody(operation, body) {
     }
     if (body.status !== undefined) {
         const status = String(body.status).trim().toUpperCase()
-        if (status === 'ACTIVE' || status === 'PENDING') operation.status = status
+        if (status === 'ACTIVE' || status === 'PENDING' || status === 'COMPLETED') operation.status = status
     }
     if (body.stage !== undefined && body.stage !== null && body.stage !== '') {
         operation.stage = Math.min(6, toCount(body.stage, operation.stage))
