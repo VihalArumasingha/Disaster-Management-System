@@ -31,6 +31,7 @@ import activeDisasterRoutes from './roles/ngoManager/routes/activeDisasterRoutes
 import collectingCenterRoutes from './roles/ngoManager/routes/collectingCenterRoutes.js'
 import volunteerRoutes from './roles/ngoManager/routes/volunteerRoutes.js'
 import { operationRouter, recordRouter } from './roles/ngoManager/routes/distributionRoutes.js'
+import ngoPastRoutes from './roles/ngoManager/routes/ngoPastRoutes.js'
 import weatherRoutes from './roles/weather/routes/weatherRoutes.js'
 import { receiveTextBeeWebhook } from './roles/webhooks/textBeeWebhookController.js'
 import {
@@ -111,6 +112,7 @@ app.use('/api/collectingcenters', collectingCenterRoutes)
 app.use('/api/volunteers', volunteerRoutes)
 app.use('/api/operations', operationRouter)
 app.use('/api/distributionrecords', recordRouter)
+app.use('/api/ngopast', ngoPastRoutes)
 app.use('/api/weather', weatherRoutes)
 
 app.use(errorMiddleware)
