@@ -1,5 +1,8 @@
 import Warning from '../../../models/Warning.js'
 import TargetArea from '../../../models/TargetArea.js'
+import CollectingCenter from '../../../models/CollectingCenter.js'
+import DistributionOperation from '../../../models/DistributionOperation.js'
+import Volunteer from '../../../models/Volunteer.js'
 import { v2 as cloudinary } from 'cloudinary'
 import fs from 'fs'
 import path from 'path'
@@ -255,6 +258,74 @@ export const getTargetAreas = async (req, res, next) => {
         const areas = await TargetArea.find().sort({ name: 1 })
         res.json({ success: true, targetAreas: areas })
     } catch (error) {
+        next(error)
+    }
+}
+
+export const getOverviewMetrics = async (req, res, next) => {
+    try {
+        // Get collection centers count
+        const totalCollectionCenters = await CollectingCenter.countDocuments()
+
+        // Get operations counts by status
+        const operationsInProgress = await DistributionOperation.countDocuments({ status: 'ACTIVE' })
+        const operationsCompleted = await DistributionOperation.countDocuments({ status: 'COMPLETED' })
+        const operationsPending = await DistributionOperation.countDocuments({ status: 'PENDING' })
+
+        // Get volunteer counts
+        const totalRegisteredVolunteers = await Volunteer.countDocuments()
+        const totalAssignedVolunteers = await Volunteer.countDocuments({ 'assignment.status': 'ASSIGNED' })
+
+        // Get top 5 operations by volunteer need
+        const topOperations = await DistributionOperation.find()
+            .sort({ requiredVolunteers: -1 })
+            .limit(5)
+            .select('name requiredVolunteers status location')
+
+        // Get volunteer type breakdown
+        const individualVolunteers = await Volunteer.countDocuments({ volunteerType: 'individual' })
+        const teamVolunteers = await Volunteer.countDocuments({ volunteerType: 'team' })
+        const totalVolunteers = individualVolunteers + teamVolunteers
+
+        // Get collection center categories distribution
+        const centers = await CollectingCenter.find()
+        const categoryDistribution = {
+            Food: 0,
+            Medical: 0,
+            Clothing: 0,
+            Shelter: 0,
+            Water: 0
+        }
+
+        centers.forEach(center => {
+            const categories = Array.isArray(center?.categories) ? center.categories : []
+            categories.forEach(category => {
+                if (categoryDistribution.hasOwnProperty(category)) {
+                    categoryDistribution[category]++
+                }
+            })
+        })
+
+        res.json({
+            success: true,
+            metrics: {
+                totalCollectionCenters,
+                operationsInProgress,
+                operationsCompleted,
+                operationsPending,
+                totalRegisteredVolunteers,
+                totalAssignedVolunteers,
+                topOperations,
+                volunteerTypeBreakdown: {
+                    individuals: individualVolunteers,
+                    teamLeads: teamVolunteers,
+                    total: totalVolunteers
+                },
+                categoryDistribution
+            }
+        })
+    } catch (error) {
+        console.error('Error in getOverviewMetrics:', error)
         next(error)
     }
 }

@@ -9,7 +9,8 @@ import {
     createDisaster,
     updateDisaster,
     deleteDisaster,
-    getTargetAreas
+    getTargetAreas,
+    getOverviewMetrics
 } from '../controllers/ngoManagerController.js'
 
 const router = express.Router()
@@ -23,5 +24,8 @@ router.post('/disasters', disasterUpload.array('images', 4), createDisaster)
 router.put('/disasters/:disasterId', disasterUpload.array('images', 4), updateDisaster)
 router.delete('/disasters/:disasterId', deleteDisaster)
 router.get('/target-areas', getTargetAreas)
+
+// Overview metrics route
+router.get('/overview/metrics', getOverviewMetrics)
 
 export default router
