@@ -90,7 +90,7 @@ function HazardClusterCard({ cluster, escalationEligible = false }) {
 			<div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
 				<p className="inline-flex items-center gap-1.5 text-xs text-slate-500"><MapPin size={14} />{cluster.district ? `${cluster.district} · ` : ''}{getLocationName(cluster)}</p>
 				<Link
-					to={`/dmcofficer/hazard-reviews/clusters/${encodeURIComponent(clusterId || '')}`}
+					to={`/dutyofficer/hazard-reviews/clusters/${encodeURIComponent(clusterId || '')}`}
 					className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
 				>
 					Open <ArrowUpRight size={16} />

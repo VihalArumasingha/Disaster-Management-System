@@ -1,6 +1,6 @@
 import api from '../../../services/api'
 
-const hazardReviewPath = '/dmcofficer/hazard-reviews'
+const hazardReviewPath = '/dutyofficer/hazard-reviews'
 
 const getResponseData = (response) => response.data?.data
 
@@ -48,50 +48,12 @@ export const getClusterEscalation = async (clusterId, config) => {
     return getResponseData(response)
 }
 
-export const getEscalationTrackingRecords = async (config) => {
-    const clusters = await getHazardReviewQueue(config)
-    const lookups = await Promise.allSettled(
-        clusters.map(async (cluster) => {
-            const clusterId = cluster._id || cluster.id
-            if (!clusterId) return null
-            const escalation = await getClusterEscalation(clusterId, config)
-            if (!escalation) return null
-
-            let currentEvaluation = null
-            let evaluationUnavailable = false
-            try {
-                currentEvaluation = await evaluateEscalation(clusterId, config)
-            } catch {
-                evaluationUnavailable = true
-            }
-
-            const populatedCluster = escalation.clusterId && typeof escalation.clusterId === 'object'
-                ? escalation.clusterId
-                : cluster
-
-            return {
-                ...escalation,
-                clusterId: populatedCluster._id || clusterId,
-                cluster: populatedCluster,
-                currentEvaluation,
-                evaluationUnavailable
-            }
-        })
-    )
-
-    return {
-        records: lookups
-            .filter((result) => result.status === 'fulfilled' && result.value)
-            .map((result) => result.value),
-        lookupFailures: lookups.filter((result) => result.status === 'rejected').length,
-        evaluationFailures: lookups.filter((result) => (
-            result.status === 'fulfilled' && result.value?.evaluationUnavailable
-        )).length,
-        clusterCount: clusters.length
-    }
+export const getIncomingHazardEscalations = async (config) => {
+    const response = await api.get('/dmcofficer/hazard-escalations', config)
+    return getResponseData(response) || []
 }
 
-export const escalateClusterToDutyOfficer = async (clusterId) => {
+export const escalateClusterToDmcOfficer = async (clusterId) => {
     const response = await api.post(
         `${hazardReviewPath}/clusters/${encodeURIComponent(clusterId)}/escalate`
     )
