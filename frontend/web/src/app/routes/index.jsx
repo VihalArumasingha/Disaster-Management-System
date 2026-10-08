@@ -5,7 +5,7 @@ import AuthPage from '../../auth/components/AuthPage'
 import RoleDashboard, { StaffDashboard } from '../../auth/components/RoleDashboard'
 import { USER_ROLES } from '../../constants/roles'
 import DmcOfficerLayout from '../../layouts/dmcOfficer/DmcOfficerLayout'
-import NgoManagerLayout from '../../layouts/ngoManager/NgoManagerLayout'
+import NgoManagerLayout from '../../layouts/DMCnewManager/DMCnewManagerLayout.jsx'
 
 const DmcDashboardPage = lazy(() => import('../../roles/dmcOfficer/pages/DmcDashboardPage'))
 const EscalatedReportsPage = lazy(() => import('../../roles/dmcOfficer/pages/EscalatedReportsPage'))
@@ -18,25 +18,25 @@ const WarningUpdatePage = lazy(() => import('../../roles/dmcOfficer/pages/Warnin
 const TargetAreasPage = lazy(() => import('../../roles/dmcOfficer/pages/TargetAreasPage'))
 const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateTargetAreaPage'))
 const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
-const ShelterManagementPage = lazy(() => import('../../components/NGODashboard/ShelterManagement.jsx'))
-const OrganizationManagementPage = lazy(() => import('../../components/NGODashboard/OrganizationManagement.jsx'))
-const ReliefSupplyManagementPage = lazy(() => import('../../components/NGODashboard/ReliefSupplyManagement.jsx'))
-const ImpactMonitoringPage = lazy(() => import('../../components/NGODashboard/ImpactMonitoring.jsx'))
-const AnalyticsReportsPage = lazy(() => import('../../components/NGODashboard/AnalyticsReports.jsx'))
+const ShelterManagementPage = lazy(() => import('../../components/DMCnewDashboard/ShelterManagement.jsx'))
+const OrganizationManagementPage = lazy(() => import('../../components/DMCnewDashboard/OrganizationManagement.jsx'))
+const ReliefSupplyManagementPage = lazy(() => import('../../components/DMCnewDashboard/ReliefSupplyManagement.jsx'))
+const ImpactMonitoringPage = lazy(() => import('../../components/DMCnewDashboard/ImpactMonitoring.jsx'))
+const AnalyticsReportsPage = lazy(() => import('../../components/DMCnewDashboard/AnalyticsReports.jsx'))
 
-const DonationPage = lazy(() => import('../../components/NGODashboard/Donationpage.jsx'))
-const DonationFormPage = lazy(() => import('../../components/NGODashboard/DonationForm.jsx'))
-const EditDonationPage = lazy(() => import('../../components/NGODashboard/editdonatemoney.jsx'))
-const ActiveDisasterPage = lazy(() => import('../../components/NGODashboard/activedisaster.jsx'))
-const DisasterFormPage = lazy(() => import('../../components/NGODashboard/DisasterForm.jsx'))
-const CollectingCentersPage = lazy(() => import('../../components/NGODashboard/center.jsx'))
-const AssignReliefPage = lazy(() => import('../../components/NGODashboard/assignreliefpage.jsx'))
-const InventoryPage = lazy(() => import('../../components/NGODashboard/inventory page.jsx'))
-const VolunteerPage = lazy(() => import('../../components/NGODashboard/volunteerpage.jsx'))
-const EditVolunteerPage = lazy(() => import('../../components/NGODashboard/editvolunteer.jsx'))
-const ReliefDistributionPage = lazy(() => import('../../components/NGODashboard/distributionpage.jsx'))
-const NgoPastPage = lazy(() => import('../../components/NGODashboard/ngopast.jsx'))
-const OverviewPage = lazy(() => import('../../components/NGODashboard/OverviewPage.jsx'))
+const DonationPage = lazy(() => import('../../components/DMCnewDashboard/Donationpage.jsx'))
+const DonationFormPage = lazy(() => import('../../components/DMCnewDashboard/DonationForm.jsx'))
+const EditDonationPage = lazy(() => import('../../components/DMCnewDashboard/editdonatemoney.jsx'))
+const ActiveDisasterPage = lazy(() => import('../../components/DMCnewDashboard/activedisaster.jsx'))
+const DisasterFormPage = lazy(() => import('../../components/DMCnewDashboard/DisasterForm.jsx'))
+const CollectingCentersPage = lazy(() => import('../../components/DMCnewDashboard/center.jsx'))
+const AssignReliefPage = lazy(() => import('../../components/DMCnewDashboard/assignreliefpage.jsx'))
+const InventoryPage = lazy(() => import('../../components/DMCnewDashboard/inventory page.jsx'))
+const VolunteerPage = lazy(() => import('../../components/DMCnewDashboard/volunteerpage.jsx'))
+const EditVolunteerPage = lazy(() => import('../../components/DMCnewDashboard/editvolunteer.jsx'))
+const ReliefDistributionPage = lazy(() => import('../../components/DMCnewDashboard/distributionpage.jsx'))
+const NgoPastPage = lazy(() => import('../../components/DMCnewDashboard/ngopast.jsx'))
+const OverviewPage = lazy(() => import('../../components/DMCnewDashboard/OverviewPage.jsx'))
 
 
 const withLoading = (page) => (

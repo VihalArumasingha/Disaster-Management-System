@@ -1,6 +1,25 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
-import { Building2, ClipboardList, Handshake, HeartHandshake, History, LayoutDashboard, LogOut, Menu, Package, PackageCheck, ShieldAlert, Siren, Truck, Users, Warehouse, X } from 'lucide-react'
+import {
+    Activity,
+    BarChart3,
+    Building2,
+    ClipboardList,
+    Handshake,
+    HeartHandshake,
+    History,
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    Package,
+    PackageCheck,
+    ShieldAlert,
+    Siren,
+    Truck,
+    Users,
+    Warehouse,
+    X
+} from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { dashboardPathForRole } from '../../auth/utils/dashboardPaths'
 import { USER_ROLES } from '../../constants/roles'
@@ -25,7 +44,7 @@ const NAV_ITEMS = [
 const linkClass = ({ isActive }) =>
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
         isActive
-            ? 'bg-blue-600 text-white'
+            ? 'bg-blue-700 text-white shadow-sm'
             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
     }`
 
@@ -56,9 +75,11 @@ function NgoManagerLayout({ children }) {
     }
 
     const sidebar = (
-        <aside className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#10233b] px-4 py-5 text-white transition-transform lg:translate-x-0 ${
-            mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}>
+        <aside
+            className={`fixed inset-y-0 left-0 z-40 flex w-[270px] flex-col bg-[#10233b] px-4 py-5 text-white transition-transform lg:translate-x-0 ${
+                mobileOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
+        >
             {/* Brand */}
             <div className="flex items-center justify-between border-b border-slate-700/70 px-2 pb-5">
                 <div className="flex items-center gap-3">
@@ -67,7 +88,7 @@ function NgoManagerLayout({ children }) {
                     </div>
                     <div>
                         <p className="font-bold tracking-wide">SafeZone</p>
-                        <p className="text-xs text-slate-400">DMC operations</p>
+                        <p className="text-xs text-slate-400">NGO operations</p>
                     </div>
                 </div>
                 <button
@@ -81,7 +102,7 @@ function NgoManagerLayout({ children }) {
             </div>
 
             {/* Nav */}
-            <nav aria-label="DMC Officer navigation" className="mt-5 flex-1 space-y-1 overflow-y-auto">
+            <nav aria-label="NGO Manager navigation" className="mt-5 flex-1 space-y-1 overflow-y-auto">
                 {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
                     <NavLink
                         key={to}
@@ -99,7 +120,7 @@ function NgoManagerLayout({ children }) {
             {/* User footer */}
             <div className="border-t border-slate-700/70 px-2 pt-4">
                 <p className="truncate text-sm font-semibold">{user.name}</p>
-                <p className="mt-1 text-xs text-slate-400">DMC Officer</p>
+                <p className="mt-1 text-xs text-slate-400">NGO Manager</p>
                 <button
                     type="button"
                     onClick={signOut}
@@ -136,13 +157,12 @@ function NgoManagerLayout({ children }) {
             {sidebar}
 
             {/* Main content */}
-            <div className="min-h-screen lg:pl-[260px]">
+            <div className="min-h-screen lg:pl-[270px]">
                 {logoutError && (
                     <p role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">
                         {logoutError}
                     </p>
                 )}
-                {/* Support both <Outlet> (nested routes) and direct children */}
                 {children ?? <Outlet />}
             </div>
         </div>

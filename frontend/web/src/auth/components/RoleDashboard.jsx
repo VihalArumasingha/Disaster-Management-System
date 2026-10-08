@@ -4,7 +4,7 @@ import { useAuth } from '../hooks'
 import CitizenLayout from '../../layouts/citizen/CitizenLayout'
 import DmcOfficerLayout from '../../layouts/dmcOfficer/DmcOfficerLayout'
 import DutyOfficerLayout from '../../layouts/dutyOfficer/DutyOfficerLayout'
-import NgoManagerLayout from '../../layouts/ngoManager/NgoManagerLayout'
+import NgoManagerLayout from '../../layouts/DMCnewManager/DMCnewManagerLayout'
 import { dashboardPathForRole } from '../utils/dashboardPaths'
 import { USER_ROLES } from '../../constants/roles'
 
