@@ -3,6 +3,7 @@ import TargetArea from '../../../models/TargetArea.js'
 import CollectingCenter from '../../../models/CollectingCenter.js'
 import DistributionOperation from '../../../models/DistributionOperation.js'
 import HazardEscalation from '../../../models/HazardEscalation.js'
+import HazardReport from '../../../models/HazardReport.js'
 import Volunteer from '../../../models/Volunteer.js'
 import { v2 as cloudinary } from 'cloudinary'
 import fs from 'fs'
@@ -10,23 +11,101 @@ import path from 'path'
 
 /**
  * GET /api/ngomanager/approved-disasters
- * Returns hazard escalations with status `approved` (duty-officer approved),
- * with cluster + verified reports populated. Used by Assign Relief Teams page.
+ * Returns ALL hazard escalations (Duty Officer verified, any status)
+ * PLUS all DMC Officer warnings/disasters (already approved/issued).
+ * Used by Assign Relief Teams page — emergency/critical first.
  */
 export const getApprovedDisasters = async (req, res, next) => {
     try {
-        const escalations = await HazardEscalation.find({ status: 'approved' })
+        const escalations = await HazardEscalation.find({})
             .populate('clusterId')
-            .populate(
-                'verifiedReportIds',
-                'hazardType description location capturedAt submittedAt status photo'
-            )
+            .populate({
+                path: 'verifiedReportIds',
+                select: 'hazardType description location capturedAt submittedAt status photo reporterId clusterId',
+                populate: { path: 'reporterId', select: 'name email phone' }
+            })
             .populate('escalatedBy', 'name email role')
             .populate('dutyOfficer', 'name email role')
-            .sort({ reviewedAt: -1, escalatedAt: -1 })
+            .sort({ priorityScore: -1, escalatedAt: -1 })
             .lean()
 
-        res.json({ success: true, escalations })
+        const warnings = await Warning.find({})
+            .populate('createdBy', 'name email role')
+            .populate('issuedBy', 'name email role')
+            .populate('targetAreaIds', 'name')
+            .sort({ createdAt: -1 })
+            .lean()
+
+        // Map DMC warnings to the same row shape as escalations
+        const dmcRecords = warnings.map((w) => {
+            const severity = String(w.severity || 'Medium')
+            const hasEmergencyUpdate = Array.isArray(w.updates) && w.updates.some(
+                (u) => String(u?.severity || '').toLowerCase() === 'emergency'
+            )
+            return {
+                _id: `warning-${w._id}`,
+                source: 'dmc_warning',
+                sourceLabel: 'DMC Warning',
+                hazardType: w.hazardType,
+                title: w.title,
+                city: w.city,
+                priorityLevel: severity.toLowerCase(),
+                severity,
+                priorityScore: null,
+                isEmergency: severity.toLowerCase() === 'critical' || hasEmergencyUpdate,
+                clusterId: null,
+                warningLocation: w.city || (w.manualTargetAreas || []).join(', ') || '—',
+                verifiedReportCount: null,
+                verifiedReportIds: [],
+                escalatedBy: w.createdBy || null,
+                dutyOfficer: w.issuedBy || null,
+                reviewNote: w.summary || w.message || '',
+                reviewedAt: w.issuedAt || w.createdAt,
+                escalatedAt: w.createdAt,
+                status: w.status === 'issued' ? 'approved' : w.status,
+                warningStatus: w.status,
+                active: w.active
+            }
+        })
+
+        const verifiedReports = await HazardReport.find({ status: 'verified' })
+            .populate('reporterId', 'name email phone')
+            .populate('clusterId')
+            .sort({ submittedAt: -1 })
+            .lean()
+
+        const individualReports = verifiedReports.map((r) => {
+            const coords = r?.location?.coordinates
+            const loc = Array.isArray(coords) && coords.length === 2
+                ? `${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}`
+                : 'Unknown location'
+            return {
+                _id: `report-${r._id}`,
+                source: 'verified_report',
+                sourceLabel: 'Citizen Verified Report',
+                hazardType: r.hazardType,
+                title: '',
+                city: loc,
+                priorityLevel: 'verified',
+                severity: 'Verified',
+                priorityScore: null,
+                isEmergency: false,
+                clusterId: r.clusterId || null,
+                warningLocation: loc,
+                verifiedReportCount: 1,
+                verifiedReportIds: [r],
+                escalatedBy: r.reporterId || null,
+                dutyOfficer: null,
+                reviewNote: r.description || '',
+                reviewedAt: r.submittedAt,
+                escalatedAt: r.submittedAt,
+                capturedAt: r.capturedAt,
+                status: 'verified',
+                photo: r.photo || null
+            }
+        })
+
+        res.json({ success: true, escalations, warnings: dmcRecords, verifiedReports: individualReports })
     } catch (error) {
         next(error)
     }
