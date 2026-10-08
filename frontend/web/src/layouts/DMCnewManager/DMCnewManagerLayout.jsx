@@ -55,7 +55,7 @@ function NgoManagerLayout({ children }) {
     const [logoutError, setLogoutError] = useState('')
 
     if (loading) {
-        return <div className="grid min-h-screen place-items-center text-slate-600">Loading NGO workspace…</div>
+        return <div className="grid min-h-screen place-items-center text-slate-600">Loading NGO workspace</div>
     }
     if (!user) return <Navigate to="/login" replace />
     if (user.role !== USER_ROLES.ngomanager) {
@@ -87,7 +87,7 @@ function NgoManagerLayout({ children }) {
                         <ShieldAlert size={21} />
                     </div>
                     <div>
-                        <p className="font-bold tracking-wide">SafeZone</p>
+                        <p className="font-bold tracking-wide">SafeZone </p>
                         <p className="text-xs text-slate-400">NGO operations</p>
                     </div>
                 </div>

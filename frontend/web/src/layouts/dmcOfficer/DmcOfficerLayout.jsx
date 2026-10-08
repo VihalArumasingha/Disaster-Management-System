@@ -160,7 +160,7 @@ function DmcOfficerLayout() {
                             </NavLink>
                         </div>
                     )}
-                  
+                    
                     <NavLink to="/dmcofficer/relief-distributions" className={linkClass} onClick={closeMobile}>
                         <Truck size={18} /> Relief Distribution
                     </NavLink>
