@@ -6,6 +6,9 @@ import DonationMobileView from './components/Donation/DonationMobile view'
 import DonationMoney from './components/Donation/Donatemoney'
 import Volunteer from './components/Donation/Volunteer'
 import LocationTest from './pages/LocationTest'
+import MyReports from './pages/MyReports'
+import ReportDetails from './pages/ReportDetails'
+
 
 function App() {
     return (
@@ -20,8 +23,8 @@ function App() {
                     <Route path="/map" element={<CitizenDashboard />} />
                     <Route path="/report" element={<Navigate to="/report-hazard" replace />} />
                     <Route path="/report-hazard" element={<CitizenDashboard />} />
-                    <Route path="/my-reports" element={<CitizenDashboard />} />
-                    <Route path="/my-reports/:reportId" element={<CitizenDashboard />} />
+                    <Route path="/my-reports" element={<MyReports />} />
+                    <Route path="/my-reports/:reportId" element={<ReportDetails />}/>
                     <Route path="/test-location" element={<LocationTest />} />
                     <Route path="/alerts" element={<CitizenDashboard />} />
                     <Route path="/profile" element={<CitizenDashboard />} />
