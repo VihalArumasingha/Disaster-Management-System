@@ -1,8 +1,17 @@
 import api from '../../../services/api'
 
-export const getDutyOfficerReports = async () => {
+export const getDutyOfficerReports = async (
+    includeArchived = false
+) => {
     const response = await api.get(
-        '/dutyofficer/reports'
+        '/dutyofficer/reports',
+        {
+            params: includeArchived
+                ? {
+                    archived: 'true'
+                }
+                : {}
+        }
     )
 
     return response.data
@@ -11,21 +20,25 @@ export const getDutyOfficerReports = async () => {
 export const getDutyOfficerReportById = async (
     reportId
 ) => {
-    const result = await getDutyOfficerReports()
+    const response = await api.get(
+        `/dutyofficer/reports/${reportId}`
+    )
 
-    const reports = Array.isArray(result)
-        ? result
-        : Array.isArray(result?.data)
-            ? result.data
-            : []
+    return response.data?.data || null
+}
 
-    return reports.find(
-        (report) =>
-            String(report?._id) === String(reportId)
-    ) || null
+export const archiveDutyOfficerReport = async (
+    reportId
+) => {
+    const { data } = await api.patch(
+        `/dutyofficer/reports/${reportId}/archive`
+    )
+
+    return data
 }
 
 export default {
     getDutyOfficerReports,
-    getDutyOfficerReportById
+    getDutyOfficerReportById,
+    archiveDutyOfficerReport
 }
