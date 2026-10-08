@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-describe('Sewmini Test Folder', () => {
+describe('Dewmini Test Folder', () => {
 
     // POSITIVE: verifies that basic calculation works
     it('should correctly add two numbers', () => {
