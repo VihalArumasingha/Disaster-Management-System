@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
-import { Building2, Handshake, HeartHandshake, History, LayoutDashboard, LogOut, Menu, Package, PackageCheck, ShieldAlert, Siren, Truck, Users, Warehouse, X } from 'lucide-react'
+import { Building2, ClipboardList, Handshake, HeartHandshake, History, LayoutDashboard, LogOut, Menu, Package, PackageCheck, ShieldAlert, Siren, Truck, Users, Warehouse, X } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { dashboardPathForRole } from '../../auth/utils/dashboardPaths'
 import { USER_ROLES } from '../../constants/roles'
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
     { label: 'Active Disasters', icon: Siren, to: '/ngomanager/active-disasters' },
     { label: 'Relief Quantities', icon: Package, to: '/ngomanager/relief-quantities' },
     { label: 'Collecting Centers', icon: Warehouse, to: '/ngomanager/collecting-centers' },
+    { label: 'Assign Relief Teams', icon: ClipboardList, to: '/ngomanager/assign-relief-teams' },
     { label: 'Volunteers & Assignments', icon: Users, to: '/ngomanager/volunteers' },
     { label: 'Relief Distribution', icon: PackageCheck, to: '/ngomanager/relief-distribution' },
     { label: 'Supply Distribution Audit', icon: Truck, to: '/ngomanager/relief-distributions' },

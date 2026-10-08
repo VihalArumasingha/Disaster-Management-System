@@ -2,10 +2,35 @@ import Warning from '../../../models/Warning.js'
 import TargetArea from '../../../models/TargetArea.js'
 import CollectingCenter from '../../../models/CollectingCenter.js'
 import DistributionOperation from '../../../models/DistributionOperation.js'
+import HazardEscalation from '../../../models/HazardEscalation.js'
 import Volunteer from '../../../models/Volunteer.js'
 import { v2 as cloudinary } from 'cloudinary'
 import fs from 'fs'
 import path from 'path'
+
+/**
+ * GET /api/ngomanager/approved-disasters
+ * Returns hazard escalations with status `approved` (duty-officer approved),
+ * with cluster + verified reports populated. Used by Assign Relief Teams page.
+ */
+export const getApprovedDisasters = async (req, res, next) => {
+    try {
+        const escalations = await HazardEscalation.find({ status: 'approved' })
+            .populate('clusterId')
+            .populate(
+                'verifiedReportIds',
+                'hazardType description location capturedAt submittedAt status photo'
+            )
+            .populate('escalatedBy', 'name email role')
+            .populate('dutyOfficer', 'name email role')
+            .sort({ reviewedAt: -1, escalatedAt: -1 })
+            .lean()
+
+        res.json({ success: true, escalations })
+    } catch (error) {
+        next(error)
+    }
+}
 
 export const getDisasters = async (req, res, next) => {
     try {
