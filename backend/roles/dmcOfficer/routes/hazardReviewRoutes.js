@@ -7,7 +7,8 @@ import {
     rejectReport,
     checkEscalation,
     escalateToDmcOfficer,
-    getClusterEscalation
+    getClusterEscalation,
+    getOutgoingEscalations
 } from '../controllers/hazardReviewController.js'
 
 import {
@@ -21,6 +22,11 @@ const router = express.Router()
 router.get(
     '/clusters',
     getReviewQueue
+)
+
+router.get(
+    '/escalations/recent',
+    getOutgoingEscalations
 )
 
 router.get(

@@ -17,7 +17,7 @@ export const getHazardReviewQueue = async () => {
     })
         .populate(
             'reportIds',
-            'reporterId hazardType description location capturedAt submittedAt status verification photo'
+            'reporterId hazardType description location district capturedAt submittedAt status verification photo'
         )
         .sort({
             priorityScore: -1,
@@ -41,7 +41,7 @@ export const getHazardReviewCluster = async (
     return ReportCluster.findById(clusterId)
         .populate(
             'reportIds',
-            'reporterId hazardType description location capturedAt submittedAt status verification photo'
+            'reporterId hazardType description location district capturedAt submittedAt status verification photo'
         )
 }
 

@@ -84,6 +84,14 @@ const DutyOfficerReportDetailsPage = lazy(() =>
     import('../../roles/dutyOfficer/pages/DutyOfficerReportDetailsPage')
 )
 
+const DutyOfficerProfilePage = lazy(() =>
+    import('../../roles/dutyOfficer/pages/DutyOfficerProfilePage')
+)
+
+const DutyOfficerSettingsPage = lazy(() =>
+    import('../../roles/dutyOfficer/pages/DutyOfficerSettingsPage')
+)
+
 /* =========================
    NGO MANAGER
 ========================= */
@@ -383,6 +391,20 @@ function AppRoutes() {
                             replace
                         />
                     }
+                />
+
+                <Route
+                    path="profile"
+                    element={withLoading(
+                        <DutyOfficerProfilePage />
+                    )}
+                />
+
+                <Route
+                    path="settings"
+                    element={withLoading(
+                        <DutyOfficerSettingsPage />
+                    )}
                 />
             </Route>
 

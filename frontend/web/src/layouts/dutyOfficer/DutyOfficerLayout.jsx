@@ -6,7 +6,9 @@ import {
     LogOut,
     Menu,
     ShieldAlert,
-    X
+    X,
+    UserCircle,
+    Settings
 } from 'lucide-react'
 import { Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/hooks'
@@ -82,96 +84,119 @@ function DutyOfficerLayout() {
 
             {/* Duty Officer sidebar */}
             <aside
-                className={`fixed inset-y-0 left-0 z-40 flex w-[270px] flex-col bg-[#10233b] px-4 py-5 text-white transition-transform duration-200 lg:translate-x-0 ${
+                className={`fixed inset-y-0 left-0 z-40 flex w-[270px] flex-col justify-between bg-[#10233b] px-4 py-5 text-white transition-transform duration-200 lg:translate-x-0 ${
                     mobileOpen ? 'translate-x-0' : '-translate-x-full'
                 }`}
             >
-                {/* Sidebar branding */}
-                <div className="flex items-center justify-between border-b border-slate-700/70 px-2 pb-5">
-                    <div className="flex items-center gap-3">
-                        <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600">
-                            <ShieldAlert size={21} />
+                <div>
+                    {/* Sidebar branding */}
+                    <div className="flex items-center justify-between border-b border-slate-700/70 px-2 pb-5">
+                        <div className="flex items-center gap-3">
+                            <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600">
+                                <ShieldAlert size={21} />
+                            </div>
+
+                            <div>
+                                <p className="font-bold">SafeZone</p>
+                                <p className="text-xs text-slate-400">
+                                    Duty Officer operations
+                                </p>
+                            </div>
                         </div>
 
-                        <div>
-                            <p className="font-bold">SafeZone</p>
-                            <p className="text-xs text-slate-400">
-                                Duty Officer operations
-                            </p>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={closeMobile}
+                            aria-label="Close navigation"
+                            className="rounded-lg p-2 text-slate-300 hover:bg-slate-800 lg:hidden"
+                        >
+                            <X size={19} />
+                        </button>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={closeMobile}
-                        aria-label="Close navigation"
-                        className="rounded-lg p-2 text-slate-300 hover:bg-slate-800 lg:hidden"
+                    {/* Navigation */}
+                    <nav
+                        aria-label="Duty Officer navigation"
+                        className="mt-5 flex-1 space-y-1 overflow-y-auto"
                     >
-                        <X size={19} />
-                    </button>
+                        <NavLink
+                            to="/dutyofficer/dashboard"
+                            end
+                            className={linkClass}
+                            onClick={closeMobile}
+                        >
+                            <LayoutDashboard size={18} />
+                            Dashboard
+                        </NavLink>
+
+                        <NavLink
+                            to="/dutyofficer/hazard-reviews"
+                            className={linkClass}
+                            onClick={closeMobile}
+                        >
+                            <ClipboardList size={18} />
+                            Report Clusters
+                        </NavLink>
+
+                        <NavLink
+                            to="/dutyofficer/reports"
+                            className={linkClass}
+                            onClick={closeMobile}
+                        >
+                            <FileText size={18} />
+                            Reports
+                        </NavLink>
+                    </nav>
                 </div>
 
-                {/* Navigation */}
-                <nav
-                    aria-label="Duty Officer navigation"
-                    className="mt-5 flex-1 space-y-1 overflow-y-auto"
-                >
-                    <NavLink
-                        to="/dutyofficer/dashboard"
-                        end
-                        className={linkClass}
-                        onClick={closeMobile}
-                    >
-                        <LayoutDashboard size={18} />
-                        Dashboard
-                    </NavLink>
+                {/* User / sign out block anchored to bottom */}
+                <div className="border-t border-slate-700/70 pt-4 pb-2">
+                    <div className="mb-4 px-2">
+                        <p className="truncate text-sm font-semibold text-white">
+                            {user.name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                            Duty Officer
+                        </p>
+                    </div>
 
-                    <NavLink
-                        to="/dutyofficer/hazard-reviews"
-                        className={linkClass}
-                        onClick={closeMobile}
-                    >
-                        <ClipboardList size={18} />
-                        Report Clusters
-                    </NavLink>
-
-                    <NavLink
-                        to="/dutyofficer/reports"
-                        className={linkClass}
-                        onClick={closeMobile}
-                    >
-                        <FileText size={18} />
-                        Reports
-                    </NavLink>
-                </nav>
-
-                {/* User / sign out */}
-                <div className="border-t border-slate-700/70 px-2 pt-4">
-                    <p className="truncate text-sm font-semibold">
-                        {user.name}
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-400">
-                        Duty Officer
-                    </p>
+                    <nav className="space-y-1">
+                        <NavLink
+                            to="/dutyofficer/profile"
+                            className={linkClass}
+                            onClick={closeMobile}
+                        >
+                            <UserCircle size={18} />
+                            Profile
+                        </NavLink>
+                        
+                        <NavLink
+                            to="/dutyofficer/settings"
+                            className={linkClass}
+                            onClick={closeMobile}
+                        >
+                            <Settings size={18} />
+                            Settings
+                        </NavLink>
+                        
+                        <button
+                            type="button"
+                            onClick={signOut}
+                            className="w-full mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
+                        >
+                            <LogOut size={18} />
+                            Sign out
+                        </button>
+                    </nav>
 
                     {logoutError && (
                         <p
                             role="alert"
-                            className="mt-3 text-xs text-red-300"
+                            className="mt-3 px-2 text-xs text-red-300"
                         >
                             {logoutError}
                         </p>
                     )}
-
-                    <button
-                        type="button"
-                        onClick={signOut}
-                        className="mt-3 inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
-                    >
-                        <LogOut size={16} />
-                        Sign out
-                    </button>
                 </div>
             </aside>
 

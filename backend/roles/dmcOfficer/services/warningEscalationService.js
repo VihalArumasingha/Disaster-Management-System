@@ -212,6 +212,18 @@ export const getEscalationByCluster = async (
         )
 }
 
+export const getOutgoingHazardEscalations = async (officerId) => {
+    return HazardEscalation.find({
+        escalatedBy: officerId
+    })
+        .populate({
+            path: 'clusterId',
+            select: 'hazardType location reportCount priorityLevel status lastReportedAt'
+        })
+        .sort({ escalatedAt: -1 })
+        .limit(20)
+}
+
 export const getIncomingHazardEscalations = async () => {
     return HazardEscalation.find({
         status: 'pending_dmc_review'
@@ -238,5 +250,6 @@ export default {
     evaluateWarningEscalation,
     createEscalationHandoff,
     getEscalationByCluster,
-    getIncomingHazardEscalations
+    getIncomingHazardEscalations,
+    getOutgoingHazardEscalations
 }
