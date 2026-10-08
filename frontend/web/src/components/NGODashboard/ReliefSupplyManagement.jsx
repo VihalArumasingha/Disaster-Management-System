@@ -34,7 +34,7 @@ const emptyDistribution = {
     distributionDate: today,
     recipient: '',
     purpose: '',
-    notes: ''
+    notes: '' 
 }
 
 const fetchReliefManagementData = async (apiBase, search) => {
