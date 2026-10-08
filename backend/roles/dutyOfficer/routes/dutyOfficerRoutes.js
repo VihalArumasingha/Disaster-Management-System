@@ -8,8 +8,10 @@ import hazardReviewRoutes from '../../dmcOfficer/routes/hazardReviewRoutes.js'
 
 import {
     getReports,
-    getReport
+    getReport,
+    archiveReport
 } from '../controllers/dutyOfficerReportController.js'
+
 const router = express.Router()
 
 router.use(
@@ -25,6 +27,11 @@ router.get(
 router.get(
     '/reports/:reportId',
     getReport
+)
+
+router.patch(
+    '/reports/:reportId/archive',
+    archiveReport
 )
 
 router.use(

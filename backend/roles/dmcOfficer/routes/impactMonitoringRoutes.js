@@ -10,7 +10,17 @@ import {
 const router = express.Router()
 
 router.get('/impact-records', listImpactRecords)
-router.post('/impact-records', authorize(USER_ROLES.dmcofficer), createImpactRecord)
-router.put('/impact-records/:recordId', authorize(USER_ROLES.dmcofficer), updateImpactRecord)
+
+router.post(
+    '/impact-records',
+    authorize(USER_ROLES.dmcofficer, USER_ROLES.ngomanager),
+    createImpactRecord
+)
+
+router.put(
+    '/impact-records/:recordId',
+    authorize(USER_ROLES.dmcofficer, USER_ROLES.ngomanager),
+    updateImpactRecord
+)
 
 export default router

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, FileSpreadsheet, FileText, Filter, LoaderCircle, Search } from 'lucide-react'
+import { Activity, FileSpreadsheet, FileText, LoaderCircle, Search } from 'lucide-react'
 import {
     Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
     ResponsiveContainer, Tooltip, XAxis, YAxis
@@ -10,22 +10,69 @@ import { useAuth } from '../../auth/hooks'
 import api from '../../services/api'
 
 const emptyFilters = { district: '', hazardType: '', disasterEvent: '', dateFrom: '', dateTo: '', organization: '' }
-const fieldClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+const fieldClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
 const chartColors = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#65a30d', '#db2777']
 const quantity = new Intl.NumberFormat()
 const formatNumber = (value) => quantity.format(Number(value) || 0)
 const formatPercent = (value) => `${Number(value || 0).toFixed(1)}%`
 const formatMoney = (value) => `LKR ${formatNumber(value)}`
 const toCsvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
-const reportSections = [
-    ['Alerts', 'alerts'],
-    ['Hazard reports', 'hazardReports'],
-    ['Shelters', 'shelters'],
-    ['Relief supplies', 'supplies'],
-    ['Distributions and audit', 'distributions'],
-    ['Organization contributions', 'contributions'],
-    ['District impact', 'impacts']
+
+// Single source of truth: which sections exist, their label, and their column order.
+const REPORT_SECTIONS = [
+    { key: 'alerts', label: 'Alerts', columns: ['date', 'event', 'hazardType', 'district', 'severity', 'status', 'total', 'reached', 'message'] },
+    { key: 'hazardReports', label: 'Hazard reports', columns: ['capturedAt', 'hazardType', 'status', 'district', 'event', 'reporter', 'description'] },
+    { key: 'shelters', label: 'Shelters', columns: ['shelterId', 'shelterName', 'district', 'event', 'capacity', 'occupancy', 'available', 'status'] },
+    { key: 'supplies', label: 'Relief supplies', columns: ['supplyId', 'supplyName', 'organization', 'event', 'category', 'received', 'distributed', 'remaining', 'unit', 'status'] },
+    { key: 'distributions', label: 'Distributions and audit', columns: ['distributionId', 'event', 'organization', 'supply', 'district', 'quantity', 'auditStatus', 'verifiedBy', 'verifiedAt', 'verificationNotes'] },
+    { key: 'contributions', label: 'Organization contributions', columns: ['organization', 'type', 'description', 'amount', 'currency', 'quantity', 'event', 'date'] },
+    { key: 'impacts', label: 'District impact', columns: ['event', 'district', 'affectedPopulation', 'evacuatedPopulation', 'peopleInShelters', 'injured', 'deaths', 'housesDamaged', 'schoolsAffected', 'roadsBlocked', 'hospitalsAffected', 'otherImpact', 'date'] }
 ]
+
+const isDateKey = (key) => /At$|Date$|date$/i.test(key)
+const isNumberKey = (key) =>
+    ['total', 'reached', 'capacity', 'occupancy', 'available', 'received', 'distributed', 'remaining',
+     'quantity', 'amount', 'affectedPopulation', 'evacuatedPopulation', 'peopleInShelters', 'injured',
+     'deaths', 'housesDamaged', 'schoolsAffected', 'roadsBlocked', 'hospitalsAffected'].includes(key)
+
+function friendlyLabel(key) {
+    return key
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, (c) => c.toUpperCase())
+        .trim()
+}
+
+function formatCellValue(key, value) {
+    if (value === null || value === undefined || value === '') return '—'
+    if (isDateKey(key) && typeof value === 'string') {
+        const parsed = new Date(value)
+        if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString()
+    }
+    if (isNumberKey(key)) return formatNumber(value)
+    if (typeof value === 'object') return JSON.stringify(value)
+    return String(value)
+}
+
+// Flatten analytics.records into a section -> rows structure with a stable column order.
+function buildReportData(analytics) {
+    if (!analytics) return []
+    return REPORT_SECTIONS.map((section) => {
+        const sourceRows = analytics.records[section.key] || []
+        const presentColumns = section.columns.filter((column) =>
+            sourceRows.some((row) => row[column] !== undefined && row[column] !== null && row[column] !== '')
+        )
+        const columns = presentColumns.length ? presentColumns : section.columns.slice(0, 4)
+        const rows = sourceRows.map((record) =>
+            columns.map((column) => formatCellValue(column, record[column]))
+        )
+        return {
+            key: section.key,
+            label: section.label,
+            columns: columns.map(friendlyLabel),
+            rows
+        }
+    }).filter((section) => section.rows.length > 0)
+}
 
 function AnalyticsReports({ apiBase = '/dmcofficer' }) {
     const { user } = useAuth()
@@ -107,108 +154,152 @@ function AnalyticsReports({ apiBase = '/dmcofficer' }) {
     const selectedOrganization = analytics?.filters.organization
         ? organizationNames.get(analytics.filters.organization) || analytics.filters.organization
         : 'All organizations'
-    const selectedFilters = analytics && [
+
+    const selectedFilters = analytics ? [
         ['District', analytics.filters.district || 'All districts'],
         ['Hazard type', analytics.filters.hazardType || 'All hazards'],
         ['Disaster event', analytics.filters.disasterEvent || 'All events'],
         ['Date from', analytics.filters.dateFrom || 'Any date'],
         ['Date to', analytics.filters.dateTo || 'Any date'],
         ['Organization', selectedOrganization]
-    ]
+    ] : []
 
-    const detailCsvRows = analytics ? reportSections.flatMap(([section, key]) => (
-        analytics.records[key].map((record) => ({
-            section,
-            id: record.shelterId || record.supplyId || record.distributionId || '',
-            event: record.event || '',
-            district: record.district || '',
-            organization: record.organization || '',
-            item: record.supply || record.supplyName || record.shelterName || record.description || '',
-            quantity: record.quantity ?? record.received ?? record.affectedPopulation ?? '',
-            status: record.auditStatus || record.status || '',
-            date: record.date || record.issuedAt || '',
-            details: JSON.stringify(record)
-        }))
-    )) : []
+    const summaryRows = analytics ? [
+        ['Total alerts', formatNumber(analytics.summary.totalAlerts)],
+        ['Citizen reach / reach rate', `${formatNumber(analytics.summary.citizenReach)} / ${formatPercent(analytics.summary.reachRate)}`],
+        ['Shelter capacity / occupancy / utilization', `${formatNumber(analytics.summary.shelterCapacity)} / ${formatNumber(analytics.summary.shelterOccupancy)} / ${formatPercent(analytics.summary.shelterUtilization)}`],
+        ['Supplies received / distributed / remaining', `${formatNumber(analytics.summary.suppliesReceived)} / ${formatNumber(analytics.summary.suppliesDistributed)} / ${formatNumber(analytics.summary.remainingInventory)}`],
+        ['Organization financial contributions', formatMoney(analytics.summary.organizationContributions)],
+        ['Contributions by currency', Object.entries(analytics.summary.organizationContributionsByCurrency || {}).map(([c, v]) => `${c}: ${formatNumber(v)}`).join(' · ') || '—'],
+        ['Affected population', formatNumber(analytics.summary.districtImpact.affectedPopulation)],
+        ['Deaths', formatNumber(analytics.summary.districtImpact.deaths)],
+        ['Injured', formatNumber(analytics.summary.districtImpact.injured)],
+        ['Distribution verification status', Object.entries(analytics.summary.distributionAudit || {}).map(([k, v]) => `${k}: ${formatNumber(v)}`).join(' · ') || '—']
+    ] : []
 
+    const reportData = useMemo(() => buildReportData(analytics), [analytics])
+
+    // ---------- CSV ----------
     function downloadCsv() {
-        const rows = [
-            ['Post-event impact analysis and relief audit report'],
-            ['Generated at', analytics.generatedAt],
-            ['Generated by', analytics.generatedBy || user?.name || user?.email || ''],
-            ['Selected filters'],
-            ...selectedFilters.map(([label, value]) => [label, value]),
-            ['Summary', 'Value'],
-            ['Total alerts', analytics.summary.totalAlerts],
-            ['Unique citizen reach', analytics.summary.citizenReach],
-            ['Citizen reach rate', `${analytics.summary.reachRate}%`],
-            ['Shelter capacity', analytics.summary.shelterCapacity],
-            ['Shelter occupancy', analytics.summary.shelterOccupancy],
-            ['Shelter utilization', `${analytics.summary.shelterUtilization}%`],
-            ['Supplies received', analytics.summary.suppliesReceived],
-            ['Supplies distributed', analytics.summary.suppliesDistributed],
-            ['Remaining inventory', analytics.summary.remainingInventory],
-            ['Organization financial contributions', analytics.summary.organizationContributions],
-            ['Organization contributions by currency', JSON.stringify(analytics.summary.organizationContributionsByCurrency)],
-            ['Hazard reports', analytics.summary.hazardReports],
-            ['District impact summary', JSON.stringify(analytics.summary.districtImpact)],
-            ['Distribution verification status', JSON.stringify(analytics.summary.distributionAudit)],
-            [],
-            ['Section', 'ID', 'Event', 'District', 'Organization', 'Item / description', 'Quantity / affected', 'Audit / status', 'Date', 'Details'],
-            ...detailCsvRows.map((row) => [row.section, row.id, row.event, row.district, row.organization, row.item, row.quantity, row.status, row.date, row.details])
-        ]
+        const rows = []
+
+        // Header block
+        rows.push(['Post-event impact analysis and relief audit report'])
+        rows.push(['Generated at', analytics.generatedAt])
+        rows.push(['Generated by', analytics.generatedBy || user?.name || user?.email || ''])
+        rows.push([])
+
+        // Filters
+        rows.push(['Selected filters'])
+        selectedFilters.forEach(([label, value]) => rows.push([label, value]))
+        rows.push([])
+
+        // Summary
+        rows.push(['Executive summary', 'Value'])
+        summaryRows.forEach((row) => rows.push(row))
+        rows.push([])
+
+        // One block per section, with a blank row between them for readability
+        reportData.forEach((section) => {
+            rows.push([`${section.label} (${section.rows.length})`])
+            rows.push(section.columns)
+            section.rows.forEach((row) => rows.push(row))
+            rows.push([])
+        })
+
         const content = `\uFEFF${rows.map((row) => row.map(toCsvValue).join(',')).join('\r\n')}`
         const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
         const anchor = document.createElement('a')
         anchor.href = url
-        anchor.download = 'post-event-impact-relief-audit.csv'
+        anchor.download = `post-event-impact-relief-audit-${new Date().toISOString().slice(0, 10)}.csv`
         anchor.click()
         URL.revokeObjectURL(url)
     }
 
+    // ---------- PDF ----------
     function downloadPdf() {
-        const document = new jsPDF({ orientation: 'landscape' })
-        document.setFontSize(16)
-        document.text('Post-Event Impact Analysis & Relief Audit Report', 14, 16)
-        document.setFontSize(9)
-        document.text(`Generated: ${new Date(analytics.generatedAt).toLocaleString()}`, 14, 23)
-        document.text(`Generated by: ${analytics.generatedBy || user?.name || user?.email || 'Unknown'}`, 14, 29)
+        const document = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+        const pageWidth = document.internal.pageSize.getWidth()
+        const pageHeight = document.internal.pageSize.getHeight()
+        const marginX = 40
+        let cursorY = 50
+
+        // Title block
+        document.setFontSize(18)
+        document.setTextColor(15, 23, 42)
+        document.text('Post-Event Impact Analysis & Relief Audit', marginX, cursorY)
+        cursorY += 22
+
+        document.setFontSize(10)
+        document.setTextColor(71, 85, 105)
+        document.text(`Generated: ${new Date(analytics.generatedAt).toLocaleString()}`, marginX, cursorY)
+        cursorY += 14
+        document.text(`Generated by: ${analytics.generatedBy || user?.name || user?.email || 'Unknown'}`, marginX, cursorY)
+        cursorY += 22
+
+        // Filters table
         autoTable(document, {
-            startY: 34,
+            startY: cursorY,
             head: [['Selected filter', 'Value']],
             body: selectedFilters,
             theme: 'grid',
-            styles: { fontSize: 8 }
+            styles: { fontSize: 9, cellPadding: 5 },
+            headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+            margin: { left: marginX, right: marginX }
         })
+        cursorY = document.lastAutoTable.finalY + 20
+
+        // Summary table
         autoTable(document, {
-            startY: document.lastAutoTable.finalY + 5,
-            head: [['Summary', 'Value']],
-            body: [
-                ['Total alerts', formatNumber(analytics.summary.totalAlerts)],
-                ['Citizen reach / reach rate', `${formatNumber(analytics.summary.citizenReach)} / ${formatPercent(analytics.summary.reachRate)}`],
-                ['Shelter capacity / occupancy / utilization', `${formatNumber(analytics.summary.shelterCapacity)} / ${formatNumber(analytics.summary.shelterOccupancy)} / ${formatPercent(analytics.summary.shelterUtilization)}`],
-                ['Supplies received / distributed / remaining', `${formatNumber(analytics.summary.suppliesReceived)} / ${formatNumber(analytics.summary.suppliesDistributed)} / ${formatNumber(analytics.summary.remainingInventory)}`],
-                ['Organization contributions', formatMoney(analytics.summary.organizationContributions)],
-                ['Contributions by currency', JSON.stringify(analytics.summary.organizationContributionsByCurrency)],
-                ['District impact totals', JSON.stringify(analytics.summary.districtImpact)],
-                ['Distribution verification status', JSON.stringify(analytics.summary.distributionAudit)]
-            ],
+            startY: cursorY,
+            head: [['Executive summary', 'Value']],
+            body: summaryRows,
             theme: 'grid',
-            styles: { fontSize: 8 }
+            styles: { fontSize: 9, cellPadding: 5 },
+            headStyles: { fillColor: [15, 118, 110], textColor: 255 },
+            margin: { left: marginX, right: marginX }
         })
-        for (const [title, key] of reportSections) {
-            const records = analytics.records[key]
-            if (!records.length) continue
+        cursorY = document.lastAutoTable.finalY + 24
+
+        // Detailed sections
+        reportData.forEach((section) => {
+            if (cursorY > pageHeight - 120) {
+                document.addPage()
+                cursorY = 50
+            }
+            document.setFontSize(13)
+            document.setTextColor(15, 23, 42)
+            document.text(`${section.label} (${section.rows.length})`, marginX, cursorY)
+            cursorY += 8
+
             autoTable(document, {
-                startY: document.lastAutoTable.finalY + 8,
-                head: [[title]],
-                body: records.map((record) => [JSON.stringify(record)]),
+                startY: cursorY,
+                head: [section.columns],
+                body: section.rows,
                 theme: 'striped',
-                styles: { fontSize: 7, cellWidth: 'wrap' },
-                margin: { left: 14, right: 14 }
+                styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+                headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                margin: { left: marginX, right: marginX }
             })
+            cursorY = document.lastAutoTable.finalY + 24
+        })
+
+        // Footer with page numbers
+        const pageCount = document.internal.getNumberOfPages()
+        document.setFontSize(8)
+        document.setTextColor(148, 163, 184)
+        for (let i = 1; i <= pageCount; i += 1) {
+            document.setPage(i)
+            document.text(
+                `Page ${i} of ${pageCount}`,
+                pageWidth - marginX,
+                pageHeight - 20,
+                { align: 'right' }
+            )
         }
-        document.save('post-event-impact-relief-audit.pdf')
+
+        document.save(`post-event-impact-relief-audit-${new Date().toISOString().slice(0, 10)}.pdf`)
     }
 
     const summaryCards = analytics ? [
@@ -244,12 +335,9 @@ function AnalyticsReports({ apiBase = '/dmcofficer' }) {
             {notice && <p role="status" className="mt-6 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
 
             <form onSubmit={generate} className="mt-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <div className="mb-5 flex items-center gap-2">
-                    <Filter size={19} className="text-blue-700" />
-                    <div>
-                        <h2 className="font-semibold text-slate-900">Analysis filters</h2>
-                        <p className="text-sm text-slate-500">Choose any combination of filters; blank fields include all matching records. Hazard filters apply to alerts and hazard reports; organization filters apply to relief and contribution records.</p>
-                    </div>
+                <div className="mb-5">
+                    <h2 className="font-semibold text-slate-900">Analysis Filters</h2>
+                    <p className="text-sm text-slate-500">Choose any combination of filters; blank fields include all matching records. Hazard filters apply to alerts and hazard reports; organization filters apply to relief and contribution records.</p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <SelectField label="District" value={filters.district} disabled={loadingOptions} onChange={(value) => setFilters({ ...filters, district: value })}>
@@ -279,7 +367,7 @@ function AnalyticsReports({ apiBase = '/dmcofficer' }) {
 
             {!analytics && !generating && (
                 <div className="mt-7 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
-                    <Activity className="mx-auto text-slate-400" size={34} />
+                 
                     <h2 className="mt-3 font-semibold text-slate-800">Generate an analysis to view results</h2>
                     <p className="mt-1 text-sm text-slate-500">Analytics and reports are calculated from matching database records.</p>
                 </div>
@@ -334,7 +422,6 @@ function AnalyticsReports({ apiBase = '/dmcofficer' }) {
                                 </ChartCard>
                             </section>
                             <ReportDetails analytics={analytics} />
-                            <div className="sr-only" aria-hidden="true">{formatNumber(detailCsvRows.length)} report records prepared.</div>
                         </>
                     )}
                 </>
@@ -363,12 +450,40 @@ function ReportDetails({ analytics }) {
     const sections = [
         ['Shelter information', analytics.records.shelters, ['shelterName', 'district', 'event', 'capacity', 'occupancy', 'available', 'status']],
         ['Relief supply information', analytics.records.supplies, ['supplyName', 'organization', 'event', 'category', 'received', 'distributed', 'remaining', 'unit']],
-        ['Distribution and audit information', analytics.records.distributions, ['distributionId', 'event', 'organization', 'supply', 'district', 'quantity', 'auditStatus', 'verifiedBy', 'verifiedAt', 'verificationNotes', 'auditHistory']],
+        ['Distribution and audit information', analytics.records.distributions, ['distributionId', 'event', 'organization', 'supply', 'district', 'quantity', 'auditStatus', 'verifiedBy', 'verifiedAt', 'verificationNotes']],
         ['Organization contributions', analytics.records.contributions, ['organization', 'type', 'description', 'amount', 'currency', 'quantity', 'event', 'date']],
         ['District impact', analytics.records.impacts, ['event', 'district', 'affectedPopulation', 'evacuatedPopulation', 'peopleInShelters', 'injured', 'deaths', 'housesDamaged', 'schoolsAffected', 'roadsBlocked', 'hospitalsAffected', 'otherImpact', 'date']],
         ['Hazard reports', analytics.records.hazardReports, ['hazardType', 'status', 'capturedAt']]
     ]
-    return <section className="mt-6 space-y-4">{sections.map(([title, rows, columns]) => <article key={title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><h2 className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-900">{title} <span className="text-xs font-normal text-slate-500">({rows.length})</span></h2>{rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{columns.map((column) => <th key={column} className="px-3 py-2 font-semibold">{humanize(column)}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row, index) => <tr key={row.distributionId || row.supplyId || row.shelterId || `${row.event}-${row.district}-${index}`}>{columns.map((column) => <td key={column} className="max-w-64 px-3 py-2 text-slate-700">{formatCell(row[column])}</td>)}</tr>)}</tbody></table></div> : <p className="px-4 py-5 text-sm text-slate-500">No matching records.</p>}</article>)}</section>
+    return (
+        <section className="mt-6 space-y-4">
+            {sections.map(([title, rows, columns]) => (
+                <article key={title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <h2 className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-900">
+                        {title} <span className="text-xs font-normal text-slate-500">({rows.length})</span>
+                    </h2>
+                    {rows.length ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[800px] text-left text-xs">
+                                <thead className="bg-slate-50 text-slate-500">
+                                    <tr>{columns.map((column) => <th key={column} className="px-3 py-2 font-semibold">{humanize(column)}</th>)}</tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {rows.map((row, index) => (
+                                        <tr key={row.distributionId || row.supplyId || row.shelterId || `${row.event}-${row.district}-${index}`}>
+                                            {columns.map((column) => <td key={column} className="max-w-64 px-3 py-2 text-slate-700">{formatCell(row[column])}</td>)}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <p className="px-4 py-5 text-sm text-slate-500">No matching records.</p>
+                    )}
+                </article>
+            ))}
+        </section>
+    )
 }
 
 function formatCell(value) {

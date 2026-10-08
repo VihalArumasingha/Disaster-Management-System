@@ -60,6 +60,12 @@ const hazardReportSchema = new mongoose.Schema(
             }
         },
 
+        district: {
+            type: String,
+            trim: true,
+            maxlength: 50
+        },
+
         capturedAt: {
             type: Date,
             required: true
@@ -75,6 +81,22 @@ const hazardReportSchema = new mongoose.Schema(
             enum: ['pending', 'verified', 'rejected'],
             default: 'pending',
             required: true
+        },
+
+        archived: {
+            type: Boolean,
+            default: false,
+            index: true
+        },
+
+        archive: {
+            archivedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            },
+            archivedAt: {
+                type: Date
+            }
         },
 
         syncStatus: {
@@ -107,6 +129,9 @@ const hazardReportSchema = new mongoose.Schema(
 hazardReportSchema.index({ location: '2dsphere' })
 hazardReportSchema.index({ reporterId: 1, createdAt: -1 })
 hazardReportSchema.index({ status: 1, createdAt: -1 })
+hazardReportSchema.index({ district: 1, status: 1, createdAt: -1 })
+hazardReportSchema.index({ archived: 1, status: 1, submittedAt: -1 })
+
 
 const HazardReport = mongoose.model(
     'HazardReport',

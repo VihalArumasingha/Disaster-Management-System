@@ -1,32 +1,37 @@
 import HazardReport from '../../../models/HazardReport.js'
 import { assignReportToCluster } from './hazardClusteringService.js'
+import getDistrictFromCoordinates from '../../../utils/districtLookup.js'
 
 const DUPLICATE_DISTANCE_METERS = 200
 const DUPLICATE_TIME_WINDOW_MINUTES = 10
 
-const findRecentDuplicateReport = async (reporterId, data) => {
+const findRecentDuplicateReport = async (
+    reporterId,
+    data
+) => {
     if (!data.location?.coordinates) {
         return null
     }
 
     const duplicateSince = new Date(
-        Date.now() - DUPLICATE_TIME_WINDOW_MINUTES * 60 * 1000
+        Date.now()
+        - DUPLICATE_TIME_WINDOW_MINUTES * 60 * 1000
     )
 
     const duplicate = await HazardReport.findOne({
         reporterId,
         hazardType: data.hazardType,
         submittedAt: {
-            $gte: duplicateSince,
+            $gte: duplicateSince
         },
         location: {
             $near: {
                 $geometry: data.location,
-                $maxDistance: DUPLICATE_DISTANCE_METERS,
-            },
-        },
+                $maxDistance: DUPLICATE_DISTANCE_METERS
+            }
+        }
     }).sort({
-        submittedAt: -1,
+        submittedAt: -1
     })
 
     return duplicate
@@ -44,8 +49,8 @@ export const createHazardReport = async (
      * chooses "Submit as new".
      */
     const forceSubmit =
-        data.forceSubmit === true ||
-        data.forceSubmit === 'true'
+        data.forceSubmit === true
+        || data.forceSubmit === 'true'
 
     if (!forceSubmit) {
         const duplicate = await findRecentDuplicateReport(
@@ -60,10 +65,34 @@ export const createHazardReport = async (
 
             error.code = 'DUPLICATE_HAZARD_REPORT'
             error.statusCode = 409
-            error.existingReportId = duplicate._id.toString()
+            error.existingReportId =
+                duplicate._id.toString()
 
             throw error
         }
+    }
+
+    /*
+     * Resolve the district from the report GPS coordinates.
+     *
+     * GeoJSON coordinates are:
+     * [longitude, latitude]
+     */
+    let district = null
+
+    if (
+        data.location?.coordinates
+        && data.location.coordinates.length === 2
+    ) {
+        const [
+            longitude,
+            latitude
+        ] = data.location.coordinates
+
+        district = await getDistrictFromCoordinates(
+            longitude,
+            latitude
+        )
     }
 
     const report = await HazardReport.create({
@@ -72,13 +101,16 @@ export const createHazardReport = async (
         description: data.description.trim(),
         photo: data.photo,
         location: data.location,
+        district,
         capturedAt: data.capturedAt,
         submittedAt: new Date(),
         status: 'pending',
         syncStatus: 'synced'
     })
 
-    const cluster = await assignReportToCluster(report)
+    const cluster = await assignReportToCluster(
+        report
+    )
 
     return {
         report,
@@ -89,8 +121,11 @@ export const createHazardReport = async (
 export const getCitizenHazardReports = async (
     reporterId
 ) => {
-    return HazardReport.find({ reporterId })
-        .sort({ createdAt: -1 })
+    return HazardReport.find({
+        reporterId
+    }).sort({
+        createdAt: -1
+    })
 }
 
 export const getCitizenHazardReportById = async (
@@ -131,15 +166,37 @@ export const updateCitizenHazardReport = async (
     }
 
     if (data.description !== undefined) {
-        report.description = data.description.trim()
+        report.description =
+            data.description.trim()
     }
 
     if (data.location !== undefined) {
         report.location = data.location
+
+        /*
+         * Recalculate district whenever the
+         * citizen changes the report location.
+         */
+        if (
+            data.location?.coordinates
+            && data.location.coordinates.length === 2
+        ) {
+            const [
+                longitude,
+                latitude
+            ] = data.location.coordinates
+
+            report.district =
+                await getDistrictFromCoordinates(
+                    longitude,
+                    latitude
+                )
+        }
     }
 
     if (data.capturedAt !== undefined) {
-        report.capturedAt = new Date(data.capturedAt)
+        report.capturedAt =
+            new Date(data.capturedAt)
     }
 
     if (data.photo !== undefined) {
@@ -182,7 +239,8 @@ export const getHazardReportByPhotoFilename = async (
     filename
 ) => {
     return HazardReport.findOne({
-        'photo.url': `/api/hazard-report-photos/${filename}`
+        'photo.url':
+            `/api/hazard-report-photos/${filename}`
     })
 }
 

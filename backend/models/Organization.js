@@ -65,6 +65,11 @@ const organizationSchema = new mongoose.Schema(
             enum: ['Pending Verification', 'Active', 'Suspended', 'Inactive'],
             default: 'Pending Verification'
         },
+        userAccount: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
     },
     { timestamps: true }
@@ -72,5 +77,9 @@ const organizationSchema = new mongoose.Schema(
 
 organizationSchema.index({ organizationName: 1 })
 organizationSchema.index({ organizationType: 1, status: 1 })
+organizationSchema.index(
+    { userAccount: 1 },
+    { unique: true, partialFilterExpression: { userAccount: { $type: 'objectId' } } }
+)
 
 export default mongoose.model('Organization', organizationSchema)

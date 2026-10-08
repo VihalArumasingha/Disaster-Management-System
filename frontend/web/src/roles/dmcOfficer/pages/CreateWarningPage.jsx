@@ -5,7 +5,13 @@ import api from '../../../services/api'
 import TargetAreaMap from '../components/TargetAreaMap'
 
 const hazardOptions = ['flood', 'landslide', 'tsunami', 'storm', 'other']
-const severityOptions = ['advisory', 'watch', 'warning', 'emergency']
+const severityOptions = ['Low', 'Medium', 'High', 'Critical']
+const legacySeverityValues = {
+    advisory: 'Low',
+    watch: 'Medium',
+    warning: 'High',
+    emergency: 'Critical'
+}
 
 function CreateWarningPage() {
     const navigate = useNavigate()
@@ -13,7 +19,7 @@ function CreateWarningPage() {
     const [areas, setAreas] = useState([])
     const [form, setForm] = useState({
         title: '',
-        severity: 'warning',
+        severity: 'Medium',
         hazardType: 'flood',
         message: '',
         actionSteps: [''],
@@ -61,7 +67,7 @@ function CreateWarningPage() {
                 }
                 setForm({
                     title: data.warning.title,
-                    severity: data.warning.severity,
+                    severity: legacySeverityValues[data.warning.severity] || data.warning.severity,
                     hazardType: data.warning.hazardType,
                     message: data.warning.message,
                     actionSteps: data.warning.actionSteps?.length

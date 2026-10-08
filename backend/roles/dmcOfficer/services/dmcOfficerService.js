@@ -25,7 +25,17 @@ const ALLOWED_HAZARDS = new Set([
     'storm',
     'other'
 ])
-const ALLOWED_SEVERITIES = new Set(['advisory', 'watch', 'warning', 'emergency'])
+const ALLOWED_SEVERITIES = new Set([
+    'Low',
+    'Medium',
+    'High',
+    'Critical',
+    // Keep accepting values from warnings created before the shared model enum changed.
+    'advisory',
+    'watch',
+    'warning',
+    'emergency'
+])
 const MAX_POLYGON_VERTICES = 500
 const pointOnSegment = ([x, y], [x1, y1], [x2, y2]) => (
     Math.abs((x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)) < 1e-10
@@ -248,7 +258,7 @@ const validateWarningData = async (data, requireActionSteps = false) => {
         error.statusCode = 400
         throw error
     }
-    if (!['advisory', 'watch', 'warning', 'emergency'].includes(severity)) {
+    if (!ALLOWED_SEVERITIES.has(severity)) {
         const error = new Error('Choose a valid warning severity')
         error.statusCode = 400
         throw error
@@ -379,6 +389,7 @@ export const createWarning = async (data, officerId) => {
         hazardType: validated.hazardType,
         message: validated.message,
         actionSteps: validated.actionSteps,
+        showOnDonationPage: false,
         targetAreaIds: validated.targetAreaIds,
         updates: [{
             title: initialUpdateTitle,

@@ -94,12 +94,27 @@ export const updateImpactRecord = async (req, res, next) => {
         if (!validId(req.params.recordId)) return invalid(res, 'Invalid impact record id.')
         const { payload, error } = impactPayload(req.body)
         if (error) return invalid(res, error)
-        const record = await ImpactRecord.findByIdAndUpdate(
-            req.params.recordId,
-            { $set: { ...payload, recordedBy: req.user._id } },
+
+        // NGO Managers may only edit records they created themselves.
+        // DMC Officers can edit any record.
+        const filter = { _id: req.params.recordId }
+        if (req.user.role === 'ngomanager') {
+            filter.recordedBy = req.user._id
+        }
+
+        const record = await ImpactRecord.findOneAndUpdate(
+            filter,
+            { $set: { ...payload } },
             { new: true, runValidators: true }
         ).populate('recordedBy', 'name')
-        if (!record) return res.status(404).json({ success: false, message: 'Impact record not found.' })
+
+        if (!record) {
+            return res.status(404).json({
+                success: false,
+                message: 'Impact record not found or you do not have permission to edit it.'
+            })
+        }
+
         await writeOperationalAudit({
             actor: req.user._id,
             action: 'impact.updated',
