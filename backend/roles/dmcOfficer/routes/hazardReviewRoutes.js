@@ -6,7 +6,7 @@ import {
     verifyReport,
     rejectReport,
     checkEscalation,
-    escalateToDutyOfficer,
+    escalateToDmcOfficer,
     getClusterEscalation
 } from '../controllers/hazardReviewController.js'
 
@@ -57,7 +57,7 @@ router.patch(
 router.post(
     '/clusters/:clusterId/escalate',
     validateClusterId,
-    escalateToDutyOfficer
+    escalateToDmcOfficer
 )
 
 export default router
