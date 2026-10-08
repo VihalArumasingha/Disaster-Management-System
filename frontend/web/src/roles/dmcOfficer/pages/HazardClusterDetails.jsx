@@ -5,7 +5,7 @@ import EscalationBanner from '../components/hazard/EscalationBanner'
 import HazardReportCard from '../components/hazard/HazardReportCard'
 import HazardReviewMap from '../components/hazard/HazardReviewMap'
 import {
-	escalateClusterToDutyOfficer,
+	escalateClusterToDmcOfficer,
 	evaluateEscalation,
 	getClusterEscalation,
 	getHazardReviewCluster,
@@ -115,9 +115,9 @@ function HazardClusterDetails() {
 		setEscalating(true)
 		setFeedback(null)
 		try {
-			const result = await escalateClusterToDutyOfficer(clusterId)
+			const result = await escalateClusterToDmcOfficer(clusterId)
 			setEscalation(result.data || null)
-			setFeedback({ type: 'success', message: 'Escalation sent to Duty Officer.' })
+			setFeedback({ type: 'success', message: 'Escalation sent to DMC Officer.' })
 			setRefreshing(true)
 			setReloadVersion((version) => version + 1)
 		} catch (actionError) {
@@ -136,7 +136,7 @@ function HazardClusterDetails() {
 	return (
 		<main className="mx-auto max-w-7xl px-5 pb-12 pt-20 sm:px-8 lg:pt-10">
 			<div className="flex flex-wrap items-center justify-between gap-3">
-				<Link to="/dmcofficer/hazard-reviews" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"><ArrowLeft size={16} /> Back to report clusters</Link>
+				<Link to="/dutyofficer/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"><ArrowLeft size={16} /> Back to report clusters</Link>
 				{cluster && <button type="button" onClick={refreshCluster} disabled={refreshing} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"><RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} /> Refresh</button>}
 			</div>
 

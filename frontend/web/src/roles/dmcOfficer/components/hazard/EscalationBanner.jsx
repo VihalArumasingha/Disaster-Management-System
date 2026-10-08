@@ -1,7 +1,8 @@
 import { ArrowUpRight, CircleCheck, Clock3, ShieldAlert } from 'lucide-react'
 
 const escalationStatuses = {
-	pending_duty_verification: 'Pending Duty Officer verification',
+	pending_dmc_review: 'Sent to DMC Officer',
+	pending_duty_verification: 'Historical: pending Duty Officer verification',
 	approved: 'Approved by Duty Officer',
 	rejected: 'Rejected by Duty Officer',
 	cancelled: 'Cancelled'
@@ -27,9 +28,9 @@ function EscalationBanner({ evaluation, escalation, escalationError = '', loadin
 					<div className="min-w-0">
 						<h2 className="font-semibold text-blue-950">{status}</h2>
 						<p className="mt-1 text-sm leading-6 text-blue-900">
-							{escalation.status === 'pending_duty_verification'
-								? 'This verified cluster has been handed off to the Duty Officer. The DMC Officer does not issue the public warning.'
-								: 'The Duty Officer has reviewed this hazard cluster. Public warning decisions remain with the authorized warning workflow.'}
+							{escalation.status === 'pending_dmc_review'
+								? 'This verified cluster has been handed off to the DMC Officer. This handoff does not issue a public warning.'
+								: 'The escalation has already been recorded. Public warning decisions remain in the DMC warning workflow.'}
 						</p>
 						{escalation.escalatedAt && <p className="mt-2 text-xs text-blue-800">Sent {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(escalation.escalatedAt))}</p>}
 					</div>
@@ -55,13 +56,13 @@ function EscalationBanner({ evaluation, escalation, escalationError = '', loadin
 						<span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-800"><ShieldAlert size={21} /></span>
 						<div>
 							<h2 className="font-bold text-amber-950">Escalation threshold reached</h2>
-							<p className="mt-1 max-w-2xl text-sm leading-6 text-amber-900">This verified hazard cluster is eligible to be sent to the Duty Officer for review. Escalating does not issue a public warning or notify citizens.</p>
+							<p className="mt-1 max-w-2xl text-sm leading-6 text-amber-900">This verified hazard cluster is eligible to be sent to the DMC Officer. Escalating does not issue a public warning or notify citizens.</p>
 							{evaluation.reason && <p className="mt-2 text-xs text-amber-900">{evaluation.reason}</p>}
 						</div>
 					</div>
 					<button type="button" onClick={onEscalate} disabled={submitting} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-amber-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-900 disabled:cursor-wait disabled:opacity-60">
 						{submitting ? <Clock3 className="animate-pulse" size={16} /> : <ArrowUpRight size={16} />}
-						{submitting ? 'Sending…' : 'Escalate to Duty Officer'}
+						{submitting ? 'Sending…' : 'Escalate to DMC Officer'}
 					</button>
 				</div>
 				{evaluation.verifiedReportCount != null && (
@@ -78,7 +79,7 @@ function EscalationBanner({ evaluation, escalation, escalationError = '', loadin
 	return (
 		<section aria-label="Escalation eligibility" className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
 			<p className="font-semibold text-slate-800">Not yet eligible for escalation</p>
-			<p className="mt-1 text-sm leading-6 text-slate-600">{evaluation?.reason || 'The cluster does not currently meet the verified-report and priority criteria for Duty Officer review.'}</p>
+			<p className="mt-1 text-sm leading-6 text-slate-600">{evaluation?.reason || 'The cluster does not currently meet the verified-report and priority criteria for escalation to the DMC Officer.'}</p>
 			{evaluation?.verifiedReportCount != null && <p className="mt-2 text-xs text-slate-500">{evaluation.verifiedReportCount} verified {evaluation.verifiedReportCount === 1 ? 'report' : 'reports'}</p>}
 		</section>
 	)

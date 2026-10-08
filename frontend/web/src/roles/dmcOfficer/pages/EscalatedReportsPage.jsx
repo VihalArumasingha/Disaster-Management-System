@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Clock3, MapPin, RefreshCw, ShieldCheck, UserRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { getEscalationTrackingRecords } from '../services/hazardReviewService'
+import { getIncomingHazardEscalations } from '../services/hazardReviewService'
 
 const statuses = {
+    pending_dmc_review: {
+        label: 'Incoming from Duty Officer',
+        style: 'border-blue-200 bg-blue-50 text-blue-900'
+    },
     pending_duty_verification: {
-        label: 'Pending Duty Officer Verification',
+        label: 'Historical: Pending Duty Officer Verification',
         style: 'border-amber-200 bg-amber-50 text-amber-900'
     },
     approved: {
@@ -54,8 +58,8 @@ const getLocation = (cluster) => {
 }
 
 const getEscalatedBy = (value) => {
-    if (value && typeof value === 'object') return value.name || value.email || 'DMC Officer'
-    return value ? 'DMC Officer' : 'Not recorded'
+    if (value && typeof value === 'object') return value.name || value.email || 'Duty Officer'
+    return value ? 'Duty Officer' : 'Not recorded'
 }
 
 function EscalationCard({ record }) {
@@ -64,11 +68,10 @@ function EscalationCard({ record }) {
         style: 'border-slate-200 bg-slate-100 text-slate-700'
     }
     const priority = String(record.priorityLevel || 'unknown').toLowerCase()
-    const clusterId = record.clusterId || record.cluster?._id
-    const dutyOfficer = record.dutyOfficer && typeof record.dutyOfficer === 'object'
-        ? record.dutyOfficer.name || record.dutyOfficer.email
-        : ''
-
+    const cluster = record.clusterId && typeof record.clusterId === 'object'
+        ? record.clusterId
+        : record.cluster
+    const reports = Array.isArray(record.verifiedReportIds) ? record.verifiedReportIds : []
     return (
         <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -78,13 +81,11 @@ function EscalationCard({ record }) {
                         <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${status.style}`}>{status.label}</span>
                     </div>
                     <h2 className="mt-3 text-lg font-semibold text-slate-900">{titleCase(record.hazardType)}</h2>
-                    <p className="mt-1 inline-flex items-start gap-1.5 text-sm text-slate-600"><MapPin className="mt-0.5 shrink-0" size={15} />{getLocation(record.cluster)}</p>
+                    <p className="mt-1 inline-flex items-start gap-1.5 text-sm text-slate-600"><MapPin className="mt-0.5 shrink-0" size={15} />{getLocation(cluster)}</p>
                 </div>
-                {clusterId && (
-                    <Link to={`/dmcofficer/hazard-reviews/clusters/${encodeURIComponent(clusterId)}`} className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">
-                        View cluster
-                    </Link>
-                )}
+                <Link to="/dmcofficer/warnings/create" className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">
+                    Continue to warning management
+                </Link>
             </div>
 
             <div className="mt-5 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -94,31 +95,19 @@ function EscalationCard({ record }) {
                 <div><p className="text-xs font-medium text-slate-500">Escalated time</p><p className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-slate-800"><Clock3 size={14} />{formatDate(record.escalatedAt)}</p></div>
             </div>
 
-            {(record.reviewNote || dutyOfficer || record.reviewedAt) && (
-                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600"><ShieldCheck size={14} /> Duty Officer decision</p>
-                    {dutyOfficer && <p className="mt-2 text-sm text-slate-700">Reviewed by {dutyOfficer}</p>}
-                    {record.reviewedAt && <p className="mt-1 text-xs text-slate-500">Reviewed {formatDate(record.reviewedAt)}</p>}
-                    {record.reviewNote && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{record.reviewNote}</p>}
-                </div>
-            )}
-
-            <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">Escalation criteria</p>
-                <p className="mt-1 text-sm leading-6 text-blue-950">
-                    {record.currentEvaluation?.reason
-                        ? `Current eligibility evaluation: ${record.currentEvaluation.reason}.`
-                        : 'The backend does not retain a separate historical reason for this escalation.'}
-                </p>
-                <p className="mt-1 text-xs leading-5 text-blue-800">
-                    Historical reason: not stored by the current API.
-                    {record.currentEvaluation?.escalationCriteria?.minimumVerifiedReports != null
-                        && ` Current threshold: at least ${record.currentEvaluation.escalationCriteria.minimumVerifiedReports} verified ${record.currentEvaluation.escalationCriteria.minimumVerifiedReports === 1 ? 'report' : 'reports'}`}
-                    {record.currentEvaluation?.escalationCriteria?.minimumPriorityLevel
-                        && ` and ${titleCase(record.currentEvaluation.escalationCriteria.minimumPriorityLevel)} priority or above`}
-                    .
-                </p>
-            </div>
+            <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600"><ShieldCheck size={14} /> Verified reports ({reports.length})</p>
+                {reports.length ? (
+                    <div className="mt-2 space-y-3">
+                        {reports.map((report, index) => (
+                            <div key={report._id || index} className="border-t border-slate-200 pt-3 first:border-0 first:pt-0">
+                                <p className="text-xs font-medium text-slate-500">{titleCase(report.hazardType)} · {titleCase(report.status)}</p>
+                                <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{report.description || 'No description provided.'}</p>
+                            </div>
+                        ))}
+                    </div>
+                ) : <p className="mt-2 text-sm text-slate-600">No report details were included with this handoff.</p>}
+            </section>
         </article>
     )
 }
@@ -128,18 +117,14 @@ function EscalatedReportsPage() {
 	const [loading, setLoading] = useState(true)
 	const [refreshing, setRefreshing] = useState(false)
 	const [error, setError] = useState('')
-	const [lookupFailures, setLookupFailures] = useState(0)
-    const [evaluationFailures, setEvaluationFailures] = useState(0)
 	const [reloadKey, setReloadKey] = useState(0)
 
 	useEffect(() => {
-		const controller = new AbortController()
-		getEscalationTrackingRecords({ signal: controller.signal })
+        const controller = new AbortController()
+        getIncomingHazardEscalations({ signal: controller.signal })
 			.then((result) => {
 				if (controller.signal.aborted) return
-				setRecords(result.records)
-				setLookupFailures(result.lookupFailures)
-                setEvaluationFailures(result.evaluationFailures)
+                setRecords(Array.isArray(result) ? result : [])
 			})
 			.catch((requestError) => {
 				if (!controller.signal.aborted) {
@@ -168,9 +153,9 @@ function EscalatedReportsPage() {
         <main className="mx-auto max-w-7xl px-5 pb-12 pt-20 sm:px-8 lg:pt-10">
             <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
-                    <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Incident management</p>
-                    <h1 className="mt-2 text-3xl font-bold text-slate-900">Escalated to Duty Officer</h1>
-                    <p className="mt-2 text-slate-600">Verified hazard clusters awaiting final review by the Duty Officer.</p>
+                        <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Incident management</p>
+                        <h1 className="mt-2 text-3xl font-bold text-slate-900">Incoming Hazard Escalations</h1>
+                        <p className="mt-2 text-slate-600">Verified and prioritized hazard situations sent by Duty Officers.</p>
                 </div>
                 <button type="button" onClick={refresh} disabled={loading || refreshing} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 sm:self-auto">
                     <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} /> Refresh
@@ -189,25 +174,16 @@ function EscalatedReportsPage() {
                 </div>
             ) : (
                 <>
-                    {(lookupFailures > 0 || evaluationFailures > 0) && (
-                        <p role="status" className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                            {lookupFailures > 0 && 'Some cluster escalation statuses could not be loaded, so the list may be incomplete. '}
-                            {evaluationFailures > 0 && 'Some current escalation criteria could not be evaluated. '}
-                            Retry to check again.
-                        </p>
-                    )}
                     {orderedRecords.length === 0 ? (
                         <section className="mt-8 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
                             <ShieldCheck className="mx-auto text-slate-400" size={28} />
                             <h2 className="mt-4 text-lg font-semibold text-slate-900">No escalation data</h2>
                             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                                {lookupFailures > 0 || evaluationFailures > 0
-                                    ? 'Escalation status or eligibility could not be confirmed for the available clusters.'
-                                    : 'No escalation records were found for active report clusters. The current API provides escalation status per cluster rather than a global escalation list.'}
+                                No new hazard escalations are waiting for DMC review.
                             </p>
                         </section>
                     ) : (
-                        <section aria-label="Duty Officer escalation records" className="mt-8 space-y-4">
+                        <section aria-label="Incoming hazard escalations" className="mt-8 space-y-4">
                             {orderedRecords.map((record) => (
                                 <EscalationCard key={record._id || `${record.clusterId}-${record.escalatedAt}`} record={record} />
                             ))}

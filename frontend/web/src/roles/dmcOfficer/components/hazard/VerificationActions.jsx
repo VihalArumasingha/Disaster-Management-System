@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { BadgeCheck, Ban, LoaderCircle } from 'lucide-react'
 
-function VerificationActions({ onVerify, onReject, disabled = false, busy = false }) {
+function VerificationActions({ onVerify, onReject, disabled = false, busy = false, extraAction = null }) {
 	const reasonId = useId()
 	const [rejecting, setRejecting] = useState(false)
 	const [reason, setReason] = useState('')
@@ -37,6 +37,7 @@ function VerificationActions({ onVerify, onReject, disabled = false, busy = fals
 	return (
 		<div>
 			<div className="flex flex-wrap gap-2">
+                {extraAction}
 				<button type="button" onClick={verify} disabled={disabled || busy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
 					{busy ? <LoaderCircle className="animate-spin" size={16} /> : <BadgeCheck size={16} />}
 					Verify Report

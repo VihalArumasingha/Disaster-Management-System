@@ -1,28 +1,50 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
-import { Building2, Handshake, LogOut, Menu, Package, ShieldAlert, Truck, X } from 'lucide-react'
+import {
+    Activity,
+    BarChart3,
+    Building2,
+    ClipboardList,
+    Handshake,
+    HeartHandshake,
+    History,
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    Package,
+    PackageCheck,
+    ShieldAlert,
+    Siren,
+    Truck,
+    Users,
+    Warehouse,
+    X
+} from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { dashboardPathForRole } from '../../auth/utils/dashboardPaths'
 import { USER_ROLES } from '../../constants/roles'
 
 const NAV_ITEMS = [
-    { label: 'Overview', to: '/ngomanager/dashboard' },
-    { label: 'Donations', to: '/ngomanager/donations' },
-    { label: 'Active Disasters', to: '/ngomanager/active-disasters' },
-    { label: 'Relief Quantities', to: '/ngomanager/relief-quantities' },
-    { label: 'Collecting Centers', to: '/ngomanager/collecting-centers' },
-    { label: 'Volunteers & Assignments', to: '/ngomanager/volunteers' },
-    { label: 'Relief Distribution', to: '/ngomanager/relief-distribution' },
+    { label: 'Overview', icon: LayoutDashboard, to: '/ngomanager/dashboard' },
+    { label: 'Donations', icon: HeartHandshake, to: '/ngomanager/donations' },
+    { label: 'Active Disasters', icon: Siren, to: '/ngomanager/active-disasters' },
+    { label: 'Relief Quantities', icon: Package, to: '/ngomanager/relief-quantities' },
+    { label: 'Collecting Centers', icon: Warehouse, to: '/ngomanager/collecting-centers' },
+    { label: 'Assign Relief Teams', icon: ClipboardList, to: '/ngomanager/assign-relief-teams' },
+    { label: 'Volunteers & Assignments', icon: Users, to: '/ngomanager/volunteers' },
+    { label: 'Relief Distribution', icon: PackageCheck, to: '/ngomanager/relief-distribution' },
     { label: 'Supply Distribution Audit', icon: Truck, to: '/ngomanager/relief-distributions' },
+    { label: 'Impact Monitoring', icon: Activity, to: '/ngomanager/impact-monitoring' },
+    { label: 'Impact Analysis & Reports', icon: BarChart3, to: '/ngomanager/analytics-reports' },
     { label: 'Shelter Management', icon: Building2, to: '/ngomanager/shelters' },
     { label: 'Organizations', icon: Handshake, to: '/ngomanager/organizations' },
-    { label: 'NGO Past', to: '/ngomanager/past' },
+    { label: 'NGO Past', icon: History, to: '/ngomanager/past' },
 ]
 
 const linkClass = ({ isActive }) =>
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
         isActive
-            ? 'bg-blue-600 text-white'
+            ? 'bg-blue-700 text-white shadow-sm'
             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
     }`
 
@@ -53,9 +75,11 @@ function NgoManagerLayout({ children }) {
     }
 
     const sidebar = (
-        <aside className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#10233b] px-4 py-5 text-white transition-transform lg:translate-x-0 ${
-            mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}>
+        <aside
+            className={`fixed inset-y-0 left-0 z-40 flex w-[270px] flex-col bg-[#10233b] px-4 py-5 text-white transition-transform lg:translate-x-0 ${
+                mobileOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
+        >
             {/* Brand */}
             <div className="flex items-center justify-between border-b border-slate-700/70 px-2 pb-5">
                 <div className="flex items-center gap-3">
@@ -133,13 +157,12 @@ function NgoManagerLayout({ children }) {
             {sidebar}
 
             {/* Main content */}
-            <div className="min-h-screen lg:pl-[260px]">
+            <div className="min-h-screen lg:pl-[270px]">
                 {logoutError && (
                     <p role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">
                         {logoutError}
                     </p>
                 )}
-                {/* Support both <Outlet> (nested routes) and direct children */}
                 {children ?? <Outlet />}
             </div>
         </div>
