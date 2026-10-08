@@ -24,7 +24,7 @@ const ReviewWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/Review
 const WarningUpdatePage = lazy(() => import('../../roles/dmcOfficer/pages/WarningUpdatePage'))
 const TargetAreasPage = lazy(() => import('../../roles/dmcOfficer/pages/TargetAreasPage'))
 const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateTargetAreaPage'))
-const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
+const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage')) 
 
 
 const DutyOfficerDashboardPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerDashboardPage'))
