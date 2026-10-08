@@ -15,6 +15,8 @@ import {
 } from '../controllers/ngoManagerController.js'
 import resourceManagementRoutes from '../../dmcOfficer/routes/resourceManagementRoutes.js'
 import reliefManagementRoutes from '../../dmcOfficer/routes/reliefManagementRoutes.js'
+import impactMonitoringRoutes from '../../dmcOfficer/routes/impactMonitoringRoutes.js'
+import analyticsRoutes from '../../dmcOfficer/routes/analyticsRoutes.js'
 
 const router = express.Router()
 
@@ -33,5 +35,7 @@ router.get('/target-areas', getTargetAreas)
 router.get('/overview/metrics', getOverviewMetrics)
 router.use(reliefManagementRoutes)
 router.use(resourceManagementRoutes)
+router.use(impactMonitoringRoutes)
+router.use(analyticsRoutes)
 
 export default router

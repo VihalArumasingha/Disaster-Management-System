@@ -1,4 +1,6 @@
 import express from 'express'
+import authorize from '../../../middleware/authorization/roleMiddleware.js'
+import { USER_ROLES } from '../../../utils/constants.js'
 import {
     createReliefDistribution,
     createReliefSupply,
@@ -15,6 +17,10 @@ router.get('/relief-supplies', listReliefSupplies)
 router.post('/relief-supplies', createReliefSupply)
 router.get('/relief-distributions', listReliefDistributions)
 router.post('/relief-distributions', createReliefDistribution)
-router.patch('/relief-distributions/:distributionId/audit', updateReliefDistributionAudit)
+router.patch(
+    '/relief-distributions/:distributionId/audit',
+    authorize(USER_ROLES.dmcofficer),
+    updateReliefDistributionAudit
+)
 
 export default router

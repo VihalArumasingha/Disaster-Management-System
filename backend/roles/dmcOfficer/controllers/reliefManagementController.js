@@ -4,6 +4,7 @@ import ReliefDistribution from '../../../models/ReliefDistribution.js'
 import ReliefSupply from '../../../models/ReliefSupply.js'
 import Shelter from '../../../models/Shelter.js'
 import TargetArea from '../../../models/TargetArea.js'
+import writeOperationalAudit from '../../../utils/operationalAudit.js'
 
 const categories = ['Food', 'Water', 'Medical', 'Shelter', 'Clothing', 'Hygiene', 'Equipment', 'Other']
 const auditStatuses = ['Pending Verification', 'Verified', 'Rejected', 'Flagged']
@@ -170,6 +171,13 @@ export const createReliefSupply = async (req, res, next) => {
             status: req.body.status === 'On Hold' ? 'On Hold' : 'Available',
             recordedBy: req.user._id
         })
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'relief_supply.registered',
+            entityType: 'ReliefSupply',
+            entityId: supply._id,
+            details: { supplyId: supply.supplyId, supplyName: supply.supplyName, quantityReceived, category: supply.category }
+        })
         res.status(201).json({ success: true, supply })
     } catch (error) {
         next(error)
@@ -198,6 +206,8 @@ export const listReliefDistributions = async (req, res, next) => {
             .populate('shelter', 'shelterId shelterName district')
             .populate('reliefLocation', 'name areaType')
             .populate('responsibleOfficer', 'name')
+            .populate('verifiedBy', 'name')
+            .populate('auditHistory.changedBy', 'name')
             .sort({ distributionDate: -1, createdAt: -1 })
             .lean()
         res.json({ success: true, distributions })
@@ -286,9 +296,21 @@ export const createReliefDistribution = async (req, res, next) => {
                 responsibleOfficer: req.user._id,
                 purpose: req.body.purpose,
                 notes: req.body.notes || '',
-                auditStatus: 'Pending Verification'
+                auditStatus: 'Pending Verification',
+                auditHistory: [{
+                    auditStatus: 'Pending Verification',
+                    notes: 'Distribution recorded and awaiting verification.',
+                    changedBy: req.user._id
+                }]
             }], { session })
             distribution = createdDistribution
+        })
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'distribution.created',
+            entityType: 'ReliefDistribution',
+            entityId: distribution._id,
+            details: { distributionId: distribution.distributionId, quantity, disasterEvent: distribution.disasterEvent, auditStatus: distribution.auditStatus }
         })
         res.status(201).json({ success: true, distribution })
     } catch (error) {
@@ -304,6 +326,10 @@ export const updateReliefDistributionAudit = async (req, res, next) => {
         if (!validId(req.params.distributionId)) return invalid(res, 'Invalid distribution id.')
         if (!auditStatuses.includes(req.body.auditStatus)) {
             return invalid(res, `Audit status must be one of: ${auditStatuses.join(', ')}.`)
+        }
+        const verificationNotes = String(req.body.verificationNotes || '').trim()
+        if (verificationNotes.length > 2000) {
+            return invalid(res, 'Verification notes cannot exceed 2000 characters.')
         }
         let distribution
         await session.withTransaction(async () => {
@@ -340,15 +366,37 @@ export const updateReliefDistributionAudit = async (req, res, next) => {
                 throw error
             }
             existing.auditStatus = req.body.auditStatus
+            existing.verificationNotes = verificationNotes
+            if (req.body.auditStatus === 'Verified') {
+                existing.verifiedBy = req.user._id
+                existing.verifiedAt = new Date()
+            } else {
+                existing.verifiedBy = null
+                existing.verifiedAt = null
+            }
+            existing.auditHistory.push({
+                auditStatus: req.body.auditStatus,
+                notes: verificationNotes,
+                changedBy: req.user._id
+            })
             await existing.save({ session })
             distribution = existing
+        })
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: req.body.auditStatus === 'Verified' ? 'distribution.verified' : 'distribution.audit_updated',
+            entityType: 'ReliefDistribution',
+            entityId: distribution._id,
+            details: { distributionId: distribution.distributionId, auditStatus: distribution.auditStatus, verificationNotes }
         })
         await distribution.populate([
             { path: 'organization', select: 'organizationId organizationName' },
             { path: 'supply', select: 'supplyId supplyName category unit' },
             { path: 'shelter', select: 'shelterId shelterName district' },
             { path: 'reliefLocation', select: 'name areaType' },
-            { path: 'responsibleOfficer', select: 'name' }
+            { path: 'responsibleOfficer', select: 'name' },
+            { path: 'verifiedBy', select: 'name' },
+            { path: 'auditHistory.changedBy', select: 'name' }
         ])
         res.json({ success: true, distribution })
     } catch (error) {
