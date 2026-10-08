@@ -1,6 +1,21 @@
+import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import fs from 'fs'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const envPath = path.join(__dirname, '.env')
+console.log('Loading .env from:', envPath)
+console.log('.env file exists:', fs.existsSync(envPath))
+
+dotenv.config({ path: envPath })
+
+console.log('After dotenv.config() - CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'Set' : 'Missing')
+
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
 import cookieParser from 'cookie-parser'
 
 import connectDB from './config/db.js'
@@ -12,6 +27,11 @@ import dutyOfficerRoutes from './roles/dutyOfficer/routes/dutyOfficerRoutes.js'
 import ngoManagerRoutes from './roles/ngoManager/routes/ngoManagerRoutes.js'
 import donationRoutes from './roles/ngoManager/routes/donationRoutes.js'
 import { inventoryRouter, targetRouter } from './roles/ngoManager/routes/inventoryRoutes.js'
+import activeDisasterRoutes from './roles/ngoManager/routes/activeDisasterRoutes.js'
+import collectingCenterRoutes from './roles/ngoManager/routes/collectingCenterRoutes.js'
+import volunteerRoutes from './roles/ngoManager/routes/volunteerRoutes.js'
+import { operationRouter, recordRouter } from './roles/ngoManager/routes/distributionRoutes.js'
+import ngoPastRoutes from './roles/ngoManager/routes/ngoPastRoutes.js'
 import weatherRoutes from './roles/weather/routes/weatherRoutes.js'
 import { receiveTextBeeWebhook } from './roles/webhooks/textBeeWebhookController.js'
 import {
@@ -22,8 +42,6 @@ import {
 import errorMiddleware from './middleware/errorHandling/errorMiddleware.js'
 import authenticate from './middleware/authentication/authMiddleware.js'
 import { getReportPhoto } from './roles/citizen/controllers/hazardReportController.js'
-
-dotenv.config()
 
 const app = express()
 
@@ -89,6 +107,12 @@ app.use('/api/ngomanager', ngoManagerRoutes)
 app.use('/api/donations', donationRoutes)
 app.use('/api/inventory', inventoryRouter)
 app.use('/api/targetinventories', targetRouter)
+app.use('/api/activedisasters', activeDisasterRoutes)
+app.use('/api/collectingcenters', collectingCenterRoutes)
+app.use('/api/volunteers', volunteerRoutes)
+app.use('/api/operations', operationRouter)
+app.use('/api/distributionrecords', recordRouter)
+app.use('/api/ngopast', ngoPastRoutes)
 app.use('/api/weather', weatherRoutes)
 
 app.use(errorMiddleware)

@@ -85,7 +85,8 @@ const donationSchema = new mongoose.Schema(
             maxlength: 200
         },
 
-        // Uploaded proof image path (relative to uploads/)
+        // Uploaded slip/proof image — Cloudinary secure URL (legacy rows may
+        // hold a local relative path such as uploads/donations/...)
         evidencePath: {
             type: String,
             trim: true

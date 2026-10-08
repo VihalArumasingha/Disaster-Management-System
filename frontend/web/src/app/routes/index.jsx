@@ -3,11 +3,10 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import Home from '../../components/ui/Home'
 import AuthPage from '../../auth/components/AuthPage'
-import RoleDashboard, {
+import {
     StaffDashboard
 } from '../../auth/components/RoleDashboard'
 
-import { USER_ROLES } from '../../constants/roles'
 
 import DmcOfficerLayout from '../../layouts/dmcOfficer/DmcOfficerLayout'
 import DutyOfficerLayout from '../../layouts/dutyOfficer/DutyOfficerLayout'
@@ -23,6 +22,14 @@ const DmcDashboardPage = lazy(() =>
 
 const EscalatedReportsPage = lazy(() =>
     import('../../roles/dmcOfficer/pages/EscalatedReportsPage')
+)
+
+const HazardReviewQueue = lazy(() =>
+    import('../../roles/dmcOfficer/pages/HazardReviewQueue')
+)
+
+const HazardClusterDetails = lazy(() =>
+    import('../../roles/dmcOfficer/pages/HazardClusterDetails')
 )
 
 const WarningsPage = lazy(() =>
@@ -81,8 +88,64 @@ const DutyOfficerReportDetailsPage = lazy(() =>
    NGO MANAGER
 ========================= */
 
+const ShelterManagementPage = lazy(() =>
+    import('../../components/NGODashboard/ShelterManagement.jsx')
+)
+
+const OrganizationManagementPage = lazy(() =>
+    import('../../components/NGODashboard/OrganizationManagement.jsx')
+)
+
+const ReliefSupplyManagementPage = lazy(() =>
+    import('../../components/NGODashboard/ReliefSupplyManagement.jsx')
+)
+
 const DonationPage = lazy(() =>
     import('../../components/NGODashboard/Donationpage.jsx')
+)
+
+const DonationFormPage = lazy(() =>
+    import('../../components/NGODashboard/DonationForm.jsx')
+)
+
+const EditDonationPage = lazy(() =>
+    import('../../components/NGODashboard/editdonatemoney.jsx')
+)
+
+const ActiveDisasterPage = lazy(() =>
+    import('../../components/NGODashboard/activedisaster.jsx')
+)
+
+const DisasterFormPage = lazy(() =>
+    import('../../components/NGODashboard/DisasterForm.jsx')
+)
+
+const CollectingCentersPage = lazy(() =>
+    import('../../components/NGODashboard/center.jsx')
+)
+
+const InventoryPage = lazy(() =>
+    import('../../components/NGODashboard/inventory page.jsx')
+)
+
+const VolunteerPage = lazy(() =>
+    import('../../components/NGODashboard/volunteerpage.jsx')
+)
+
+const EditVolunteerPage = lazy(() =>
+    import('../../components/NGODashboard/editvolunteer.jsx')
+)
+
+const ReliefDistributionPage = lazy(() =>
+    import('../../components/NGODashboard/distributionpage.jsx')
+)
+
+const NgoPastPage = lazy(() =>
+    import('../../components/NGODashboard/ngopast.jsx')
+)
+
+const OverviewPage = lazy(() =>
+    import('../../components/NGODashboard/OverviewPage.jsx')
 )
 
 /* =========================
@@ -160,6 +223,20 @@ function AppRoutes() {
                 />
 
                 <Route
+                    path="hazard-reviews"
+                    element={withLoading(
+                        <HazardReviewQueue />
+                    )}
+                />
+
+                <Route
+                    path="hazard-reviews/clusters/:clusterId"
+                    element={withLoading(
+                        <HazardClusterDetails />
+                    )}
+                />
+
+                <Route
                     path="warnings"
                     element={withLoading(
                         <WarningsPage />
@@ -205,6 +282,36 @@ function AppRoutes() {
                     path="target-areas/create"
                     element={withLoading(
                         <CreateTargetAreaPage />
+                    )}
+                />
+
+                <Route
+                    path="shelters"
+                    element={withLoading(
+                        <ShelterManagementPage />
+                    )}
+                />
+
+                <Route
+                    path="organizations"
+                    element={withLoading(
+                        <OrganizationManagementPage />
+                    )}
+                />
+
+                <Route
+                    path="relief-supplies"
+                    element={withLoading(
+                        <ReliefSupplyManagementPage />
+                    )}
+                />
+
+                <Route
+                    path="relief-distributions"
+                    element={withLoading(
+                        <ReliefSupplyManagementPage
+                            initialTab="distributions"
+                        />
                     )}
                 />
 
@@ -290,17 +397,130 @@ function AppRoutes() {
 
                 <Route
                     path="dashboard"
-                    element={
-                        <RoleDashboard
-                            role={USER_ROLES.ngomanager}
+                    element={withLoading(
+                        <OverviewPage />
+                    )}
+                />
+
+                <Route
+                    path="shelters"
+                    element={withLoading(
+                        <ShelterManagementPage apiBase="/ngomanager" />
+                    )}
+                />
+
+                <Route
+                    path="organizations"
+                    element={withLoading(
+                        <OrganizationManagementPage apiBase="/ngomanager" />
+                    )}
+                />
+
+                <Route
+                    path="relief-supplies"
+                    element={withLoading(
+                        <ReliefSupplyManagementPage apiBase="/ngomanager" />
+                    )}
+                />
+
+                <Route
+                    path="relief-distributions"
+                    element={withLoading(
+                        <ReliefSupplyManagementPage
+                            apiBase="/ngomanager"
+                            initialTab="distributions"
                         />
-                    }
+                    )}
                 />
 
                 <Route
                     path="donations"
                     element={withLoading(
                         <DonationPage />
+                    )}
+                />
+
+                <Route
+                    path="donations/new"
+                    element={withLoading(
+                        <DonationFormPage />
+                    )}
+                />
+
+                <Route
+                    path="donations/:donationId/edit"
+                    element={withLoading(
+                        <EditDonationPage />
+                    )}
+                />
+
+                <Route
+                    path="active-disasters"
+                    element={withLoading(
+                        <ActiveDisasterPage />
+                    )}
+                />
+
+                <Route
+                    path="disaster/new"
+                    element={withLoading(
+                        <DisasterFormPage />
+                    )}
+                />
+
+                <Route
+                    path="disaster/:disasterId/edit"
+                    element={withLoading(
+                        <DisasterFormPage />
+                    )}
+                />
+
+                <Route
+                    path="collecting-centers"
+                    element={withLoading(
+                        <CollectingCentersPage />
+                    )}
+                />
+
+                <Route
+                    path="relief-quantities"
+                    element={withLoading(
+                        <InventoryPage />
+                    )}
+                />
+
+                <Route
+                    path="volunteers"
+                    element={withLoading(
+                        <VolunteerPage />
+                    )}
+                />
+
+                <Route
+                    path="volunteers/new"
+                    element={withLoading(
+                        <EditVolunteerPage />
+                    )}
+                />
+
+                <Route
+                    path="volunteers/:volunteerId/edit"
+                    element={withLoading(
+                        <EditVolunteerPage />
+                    )}
+                />
+
+                <Route
+                    path="relief-distribution"
+                    element={withLoading(
+                        <ReliefDistributionPage />
+                    )}
+                />
+
+                <Route
+                    path="past"
+                    element={withLoading(
+                        <NgoPastPage />
                     )}
                 />
             </Route>

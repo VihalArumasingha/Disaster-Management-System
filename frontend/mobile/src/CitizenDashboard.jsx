@@ -23,6 +23,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from './authContext'
+import NgoPastHighlights from './components/Donation/NgoPastHighlights'
 import { CITIZEN_ROLE } from './constants/roles'
 import api from './services/api'
 import NearbyHazardsPanel from './NearbyHazardsPanel'
@@ -460,11 +461,15 @@ function CitizenDashboard() {
                             </div>
                         </div>
                     </section>
+
+                    {/* NGO Past activity - bottom of page */}
+                    <div className="px-5 pb-8">
+                        <NgoPastHighlights />
+                    </div>
                 </main>
             </>
         )
     }
-
 
     const renderAlerts = () => (
         <section className="px-5 pb-5 pt-7">

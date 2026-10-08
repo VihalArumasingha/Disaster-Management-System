@@ -2,6 +2,8 @@ import express from 'express'
 import {
     getInventory,
     addInventoryItem,
+    updateInventoryItem,
+    deleteInventoryItem,
     getTargetInventory,
     updateTargetInventory
 } from '../controllers/inventoryController.js'
@@ -17,6 +19,9 @@ const targetRouter = express.Router()
 inventoryRouter.get('/', getInventory)
 // POST: NGO manager only
 inventoryRouter.post('/', authenticate, authorize(USER_ROLES.ngomanager), addInventoryItem)
+// PUT / DELETE: NGO manager only
+inventoryRouter.put('/:itemId', authenticate, authorize(USER_ROLES.ngomanager), updateInventoryItem)
+inventoryRouter.delete('/:itemId', authenticate, authorize(USER_ROLES.ngomanager), deleteInventoryItem)
 
 // ── /api/targetinventories ────────────────────────────────────────────────────
 // GET: public (donation page reads targets)
