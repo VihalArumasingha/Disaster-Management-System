@@ -17,7 +17,8 @@ const toPublicUser = (user) => ({
     id: user._id,
     name: user.name,
     email: user.email,
-    role: normalizeRole(user.role)
+    role: normalizeRole(user.role),
+    ...(user.organizationId ? { organizationId: user.organizationId } : {})
 })
 
 export const register = async (req, res, next) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Building2, ChevronDown, ChevronUp, Handshake, Pencil, Plus, Search, X } from 'lucide-react'
+import { Building2, ChevronUp, Handshake, Pencil, Plus, Search, X } from 'lucide-react'
 import api from '../../services/api'
 
 const organizationTypes = ['NGO', 'Donor', 'Government Agency', 'International Organization', 'Private Organization']
@@ -25,6 +25,7 @@ const emptyOrganization = {
     district: '',
     description: ''
 }
+const temporaryPasswordHelp = 'Set a temporary password (8–72 bytes). The organization can change it after signing in.'
 
 const emptyContribution = {
     contributionType: 'Financial',
@@ -38,7 +39,6 @@ const emptyContribution = {
 
 const fieldClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
 
-// Colour accents per contribution type (used for badges and left border)
 const typeStyles = {
     Financial: { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', bar: 'border-l-emerald-400' },
     Goods:     { badge: 'bg-amber-50 text-amber-700 border-amber-200',       bar: 'border-l-amber-400' },
@@ -58,6 +58,7 @@ function OrganizationManagementPage({ apiBase = '/dmcofficer' }) {
     const [selected, setSelected] = useState(null)
     const [contributions, setContributions] = useState([])
     const [form, setForm] = useState(emptyOrganization)
+    const [initialPassword, setInitialPassword] = useState('')
     const [contribution, setContribution] = useState(emptyContribution)
     const [saving, setSaving] = useState(false)
     const [showContributionForm, setShowContributionForm] = useState(false)
@@ -103,6 +104,7 @@ function OrganizationManagementPage({ apiBase = '/dmcofficer' }) {
         setError('')
         setSelected(organization)
         setForm(organization ? { ...organization } : emptyOrganization)
+        setInitialPassword('')
         setModal('form')
     }
 
@@ -135,14 +137,15 @@ function OrganizationManagementPage({ apiBase = '/dmcofficer' }) {
                 phone: form.phone,
                 address: form.address,
                 district: form.district,
-                description: form.description || ''
+                description: form.description || '',
+                ...(!selected ? { initialPassword } : {})
             }
             if (selected) {
                 await api.put(`${organizationsApi}/${selected._id}`, payload)
                 setNotice('Organization details updated.')
             } else {
-                await api.post(organizationsApi, payload)
-                setNotice('Organization registered and marked pending verification.')
+                const { data } = await api.post(organizationsApi, payload)
+                setNotice(`Organization registered. Login account ${data.account.email} is pending DMC activation.`)
             }
             setModal('')
             await loadOrganizations()
@@ -195,7 +198,6 @@ function OrganizationManagementPage({ apiBase = '/dmcofficer' }) {
         }
     }
 
-    // Format a history row into a compact summary line
     const contributionSummary = (item) => {
         switch (item.contributionType) {
             case 'Financial':
@@ -433,6 +435,22 @@ function OrganizationManagementPage({ apiBase = '/dmcofficer' }) {
                                     Email
                                     <input required type="email" className={fieldClass} value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} />
                                 </label>
+                                {!selected && (
+                                    <label className="text-sm font-medium text-slate-700">
+                                        Default password for organization login
+                                        <input
+                                            required
+                                            type="password"
+                                            minLength="8"
+                                            maxLength="72"
+                                            autoComplete="new-password"
+                                            className={fieldClass}
+                                            value={initialPassword}
+                                            onChange={(e) => setInitialPassword(e.target.value)}
+                                        />
+                                        <span className="mt-1 block text-xs font-normal text-slate-500">{temporaryPasswordHelp}</span>
+                                    </label>
+                                )}
                                 <label className="text-sm font-medium text-slate-700">
                                     Phone
                                     <input required type="tel" className={fieldClass} value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -474,7 +492,6 @@ function OrganizationManagementPage({ apiBase = '/dmcofficer' }) {
                                     </label>
                                 </div>
 
-                                {/* --- Organization details --- */}
                                 <div className="mt-5 grid gap-x-6 gap-y-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
                                     <Detail label="Registration number" value={selected.registrationNumber || 'Not provided'} />
                                     <Detail label="Contact person" value={selected.contactPerson} />
@@ -483,13 +500,13 @@ function OrganizationManagementPage({ apiBase = '/dmcofficer' }) {
                                     <Detail label="Address" value={selected.address} />
                                     <Detail label="District" value={selected.district} />
                                     <Detail label="Description" value={selected.description || 'Not provided'} />
+                                    <Detail label="Organization login" value={selected.userAccount ? `${selected.email} · status follows organization activation` : 'No linked login account'} />
                                 </div>
 
-                                {/* --- Unified Contributions section --- */}
                                 <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                    {/* Single header for both list + form */}
+                                 
                                     <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-3">
-                                        <Handshake size={18} className="text-blue-700" />
+                                      
                                         <div className="min-w-0">
                                             <h3 className="font-semibold text-slate-900">Contributions</h3>
                                             <p className="text-xs text-slate-500">History and new records for this organization</p>
