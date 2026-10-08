@@ -18,6 +18,9 @@ const WarningUpdatePage = lazy(() => import('../../roles/dmcOfficer/pages/Warnin
 const TargetAreasPage = lazy(() => import('../../roles/dmcOfficer/pages/TargetAreasPage'))
 const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateTargetAreaPage'))
 const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
+const ShelterManagementPage = lazy(() => import('../../components/NGODashboard/ShelterManagement.jsx'))
+const OrganizationManagementPage = lazy(() => import('../../components/NGODashboard/OrganizationManagement.jsx'))
+const ReliefSupplyManagementPage = lazy(() => import('../../components/NGODashboard/ReliefSupplyManagement.jsx'))
 
 const DonationPage = lazy(() => import('../../components/NGODashboard/Donationpage.jsx'))
 const DonationFormPage = lazy(() => import('../../components/NGODashboard/DonationForm.jsx'))
@@ -63,6 +66,10 @@ function AppRoutes() {
                 <Route path="warnings/:warningId/update" element={withLoading(<WarningUpdatePage />)} />
                 <Route path="target-areas" element={withLoading(<TargetAreasPage />)} />
                 <Route path="target-areas/create" element={withLoading(<CreateTargetAreaPage />)} />
+                <Route path="shelters" element={withLoading(<ShelterManagementPage />)} />
+                <Route path="organizations" element={withLoading(<OrganizationManagementPage />)} />
+                <Route path="relief-supplies" element={withLoading(<ReliefSupplyManagementPage />)} />
+                <Route path="relief-distributions" element={withLoading(<ReliefSupplyManagementPage initialTab="distributions" />)} />
                 <Route path="profile" element={withLoading(<DmcProfilePage />)} />
             </Route>
             <Route path="/dutyofficer/dashboard" element={<RoleDashboard role={USER_ROLES.dutyofficer} />} />
@@ -71,6 +78,10 @@ function AppRoutes() {
             <Route path="/ngomanager" element={<NgoManagerLayout />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={withLoading(<OverviewPage />)} />
+                <Route path="shelters" element={withLoading(<ShelterManagementPage apiBase="/ngomanager" />)} />
+                <Route path="organizations" element={withLoading(<OrganizationManagementPage apiBase="/ngomanager" />)} />
+                <Route path="relief-supplies" element={withLoading(<ReliefSupplyManagementPage apiBase="/ngomanager" />)} />
+                <Route path="relief-distributions" element={withLoading(<ReliefSupplyManagementPage apiBase="/ngomanager" initialTab="distributions" />)} />
                 <Route path="donations" element={withLoading(<DonationPage />)} />
                 <Route path="donations/new" element={withLoading(<DonationFormPage />)} />
                 <Route path="donations/:donationId/edit" element={withLoading(<EditDonationPage />)} />

@@ -12,6 +12,8 @@ import {
     getTargetAreas,
     getOverviewMetrics
 } from '../controllers/ngoManagerController.js'
+import resourceManagementRoutes from '../../dmcOfficer/routes/resourceManagementRoutes.js'
+import reliefManagementRoutes from '../../dmcOfficer/routes/reliefManagementRoutes.js'
 
 const router = express.Router()
 
@@ -27,5 +29,7 @@ router.get('/target-areas', getTargetAreas)
 
 // Overview metrics route
 router.get('/overview/metrics', getOverviewMetrics)
+router.use(reliefManagementRoutes)
+router.use(resourceManagementRoutes)
 
 export default router
