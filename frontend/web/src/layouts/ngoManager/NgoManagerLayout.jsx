@@ -1,24 +1,25 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
-import { Activity, BarChart3, Building2, Handshake, LogOut, Menu, ShieldAlert, Truck, X } from 'lucide-react'
+import { Building2, ClipboardList, Handshake, HeartHandshake, History, LayoutDashboard, LogOut, Menu, Package, PackageCheck, ShieldAlert, Siren, Truck, Users, Warehouse, X } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { dashboardPathForRole } from '../../auth/utils/dashboardPaths'
 import { USER_ROLES } from '../../constants/roles'
 
 const NAV_ITEMS = [
-    { label: 'Overview', to: '/ngomanager/dashboard' },
-    { label: 'Donations', to: '/ngomanager/donations' },
-    { label: 'Active Disasters', to: '/ngomanager/active-disasters' },
-    { label: 'Relief Quantities', to: '/ngomanager/relief-quantities' },
-    { label: 'Collecting Centers', to: '/ngomanager/collecting-centers' },
-    { label: 'Volunteers & Assignments', to: '/ngomanager/volunteers' },
-    { label: 'Relief Distribution', to: '/ngomanager/relief-distribution' },
+    { label: 'Overview', icon: LayoutDashboard, to: '/ngomanager/dashboard' },
+    { label: 'Donations', icon: HeartHandshake, to: '/ngomanager/donations' },
+    { label: 'Active Disasters', icon: Siren, to: '/ngomanager/active-disasters' },
+    { label: 'Relief Quantities', icon: Package, to: '/ngomanager/relief-quantities' },
+    { label: 'Collecting Centers', icon: Warehouse, to: '/ngomanager/collecting-centers' },
+    { label: 'Assign Relief Teams', icon: ClipboardList, to: '/ngomanager/assign-relief-teams' },
+    { label: 'Volunteers & Assignments', icon: Users, to: '/ngomanager/volunteers' },
+    { label: 'Relief Distribution', icon: PackageCheck, to: '/ngomanager/relief-distribution' },
     { label: 'Supply Distribution Audit', icon: Truck, to: '/ngomanager/relief-distributions' },
     { label: 'Impact Monitoring', icon: Activity, to: '/ngomanager/impact-monitoring' },
     { label: 'Impact Analysis & Reports', icon: BarChart3, to: '/ngomanager/analytics-reports' },
     { label: 'Shelter Management', icon: Building2, to: '/ngomanager/shelters' },
     { label: 'Organizations', icon: Handshake, to: '/ngomanager/organizations' },
-    { label: 'NGO Past', to: '/ngomanager/past' },
+    { label: 'NGO Past', icon: History, to: '/ngomanager/past' },
 ]
 
 const linkClass = ({ isActive }) =>
@@ -66,7 +67,7 @@ function NgoManagerLayout({ children }) {
                     </div>
                     <div>
                         <p className="font-bold tracking-wide">SafeZone</p>
-                        <p className="text-xs text-slate-400">NGO operations</p>
+                        <p className="text-xs text-slate-400">DMC operations</p>
                     </div>
                 </div>
                 <button
@@ -80,7 +81,7 @@ function NgoManagerLayout({ children }) {
             </div>
 
             {/* Nav */}
-            <nav aria-label="NGO Manager navigation" className="mt-5 flex-1 space-y-1 overflow-y-auto">
+            <nav aria-label="DMC Officer navigation" className="mt-5 flex-1 space-y-1 overflow-y-auto">
                 {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
                     <NavLink
                         key={to}
@@ -98,7 +99,7 @@ function NgoManagerLayout({ children }) {
             {/* User footer */}
             <div className="border-t border-slate-700/70 px-2 pt-4">
                 <p className="truncate text-sm font-semibold">{user.name}</p>
-                <p className="mt-1 text-xs text-slate-400">NGO Manager</p>
+                <p className="mt-1 text-xs text-slate-400">DMC Officer</p>
                 <button
                     type="button"
                     onClick={signOut}

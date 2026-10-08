@@ -4,6 +4,7 @@ import authorize from '../../../middleware/authorization/roleMiddleware.js'
 import { USER_ROLES } from '../../../utils/constants.js'
 import disasterUpload from '../../../middleware/upload/disasterUpload.js'
 import {
+    getApprovedDisasters,
     getDisasters,
     getDisasterById,
     createDisaster,
@@ -22,6 +23,7 @@ const router = express.Router()
 router.use(authenticate, authorize(USER_ROLES.ngomanager))
 
 // Disaster management routes
+router.get('/approved-disasters', getApprovedDisasters)
 router.get('/disasters', getDisasters)
 router.get('/disasters/:disasterId', getDisasterById)
 router.post('/disasters', disasterUpload.array('images', 4), createDisaster)
