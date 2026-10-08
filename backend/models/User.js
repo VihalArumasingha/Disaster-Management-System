@@ -50,6 +50,12 @@ const userSchema = new mongoose.Schema(
             enum: Object.values(USER_ROLES),
             default: USER_ROLES.citizen,
             required: true
+        },
+        organizationId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Organization',
+            default: null,
+            index: true
         }
     },
     {
@@ -58,6 +64,10 @@ const userSchema = new mongoose.Schema(
 )
 
 userSchema.index({ location: '2dsphere' }, { sparse: true })
+userSchema.index(
+    { organizationId: 1 },
+    { unique: true, partialFilterExpression: { organizationId: { $type: 'objectId' } } }
+)
 
 const User = mongoose.model('User', userSchema)
 

@@ -5,6 +5,7 @@ import ReliefSupply from '../../../models/ReliefSupply.js'
 import Shelter from '../../../models/Shelter.js'
 import TargetArea from '../../../models/TargetArea.js'
 import writeOperationalAudit from '../../../utils/operationalAudit.js'
+import { USER_ROLES } from '../../../utils/constants.js'
 
 const categories = ['Food', 'Water', 'Medical', 'Shelter', 'Clothing', 'Hygiene', 'Equipment', 'Other']
 const auditStatuses = ['Pending Verification', 'Verified', 'Rejected', 'Flagged']
@@ -76,13 +77,21 @@ const inventoryPipeline = (match = {}, excludeDistributionId = null) => [
 
 export const listReliefSupplyOptions = async (req, res, next) => {
     try {
+        const isOrganization = req.user.role === USER_ROLES.organization
+        const organizationId = isOrganization ? req.user.organizationId : null
         const [organizations, supplies, shelters, reliefLocations] = await Promise.all([
-            Organization.find({ status: 'Active' }).select('organizationId organizationName').sort({ organizationName: 1 }).lean(),
+            isOrganization
+                ? Organization.find({ _id: organizationId, userAccount: req.user._id, status: 'Active' }).select('organizationId organizationName').lean()
+                : Organization.find({ status: 'Active' }).select('organizationId organizationName').sort({ organizationName: 1 }).lean(),
             ReliefSupply.aggregate(inventoryPipeline({
+                ...(isOrganization ? { organization: organizationId } : {}),
                 status: 'Available',
                 $or: [{ expiryDate: null }, { expiryDate: { $gte: startOfUtcDay() } }]
             })).then((rows) => rows.filter((row) => row.remainingQuantity > 0)),
-            Shelter.find({ status: 'Active' }).select('shelterId shelterName district address').sort({ shelterName: 1 }).lean(),
+            Shelter.find({
+                status: 'Active',
+                ...(isOrganization ? { district: req.organization.district } : {})
+            }).select('shelterId shelterName district address').sort({ shelterName: 1 }).lean(),
             TargetArea.find().select('name areaType description').sort({ name: 1 }).lean()
         ])
         res.json({
@@ -104,8 +113,11 @@ export const listReliefSupplyOptions = async (req, res, next) => {
 export const listReliefSupplies = async (req, res, next) => {
     try {
         const match = {}
+        if (req.user.role === USER_ROLES.organization) {
+            match.organization = req.user.organizationId
+        }
         if (req.query.category && categories.includes(req.query.category)) match.category = req.query.category
-        if (req.query.organization && validId(req.query.organization)) {
+        if (req.user.role !== USER_ROLES.organization && req.query.organization && validId(req.query.organization)) {
             match.organization = new mongoose.Types.ObjectId(req.query.organization)
         }
         if (req.query.q) {
@@ -117,6 +129,9 @@ export const listReliefSupplies = async (req, res, next) => {
                 { batchNumber: expression },
                 { storageLocation: expression }
             ]
+        }
+        if (req.user.role === USER_ROLES.organization) {
+            match.organization = req.user.organizationId
         }
         const supplies = await ReliefSupply.aggregate(inventoryPipeline(match))
         res.json({
@@ -141,11 +156,14 @@ export const createReliefSupply = async (req, res, next) => {
         if (!categories.includes(req.body.category)) {
             return invalid(res, `Category must be one of: ${categories.join(', ')}.`)
         }
-        if (!validId(req.body.organization)) return invalid(res, 'Select a valid organization.')
+        const isOrganization = req.user.role === USER_ROLES.organization
+        const selectedOrganizationId = isOrganization ? req.user.organizationId : req.body.organization
+        if (!validId(selectedOrganizationId)) return invalid(res, 'Select a valid organization.')
         if (!req.body.disasterEvent?.trim()) return invalid(res, 'Disaster event is required.')
 
         const organization = await Organization.findOne({
-            _id: req.body.organization,
+            _id: selectedOrganizationId,
+            ...(isOrganization ? { userAccount: req.user._id } : {}),
             status: 'Active'
         }).select('_id')
         if (!organization) return invalid(res, 'Supplies must be registered against an active organization.')
@@ -186,7 +204,9 @@ export const createReliefSupply = async (req, res, next) => {
 
 export const listReliefDistributions = async (req, res, next) => {
     try {
-        const filter = {}
+        const filter = req.user.role === USER_ROLES.organization
+            ? { organization: req.user.organizationId }
+            : {}
         if (req.query.auditStatus && auditStatuses.includes(req.query.auditStatus)) {
             filter.auditStatus = req.query.auditStatus
         }
@@ -220,6 +240,7 @@ export const createReliefDistribution = async (req, res, next) => {
     const session = await mongoose.startSession()
     try {
         const { supply: supplyId, destinationType } = req.body
+        const isOrganization = req.user.role === USER_ROLES.organization
         const quantity = Number(req.body.quantity)
         if (!validId(supplyId)) return invalid(res, 'Select a valid supply.')
         if (!Number.isFinite(quantity) || quantity <= 0) {
@@ -255,6 +276,7 @@ export const createReliefDistribution = async (req, res, next) => {
         await session.withTransaction(async () => {
             const supplyRows = await ReliefSupply.aggregate(inventoryPipeline({
                 _id: new mongoose.Types.ObjectId(supplyId),
+                ...(isOrganization ? { organization: req.user.organizationId } : {}),
                 status: 'Available',
                 $or: [{ expiryDate: null }, { expiryDate: { $gte: startOfUtcDay() } }]
             })).session(session)

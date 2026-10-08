@@ -1,8 +1,11 @@
 import mongoose from 'mongoose'
+import bcrypt from 'bcryptjs'
 import Organization from '../../../models/Organization.js'
 import OrganizationContribution from '../../../models/OrganizationContribution.js'
 import Shelter from '../../../models/Shelter.js'
 import ShelterOccupancy from '../../../models/ShelterOccupancy.js'
+import User from '../../../models/User.js'
+import { USER_ROLES } from '../../../utils/constants.js'
 import writeOperationalAudit from '../../../utils/operationalAudit.js'
 
 const shelterTypes = ['School', 'Community Hall', 'Religious Facility', 'Government Building', 'Temporary Camp', 'Other']
@@ -299,21 +302,63 @@ export const listOrganizations = async (req, res, next) => {
 }
 
 export const createOrganization = async (req, res, next) => {
+    const session = await mongoose.startSession()
     try {
-        const organization = await Organization.create({
-            ...organizationPayload(req.body),
-            createdBy: req.user._id
+        const payload = organizationPayload(req.body)
+        const initialPassword = req.body.initialPassword
+        if (typeof initialPassword !== 'string' || Buffer.byteLength(initialPassword, 'utf8') < 8 || Buffer.byteLength(initialPassword, 'utf8') > 72) {
+            return invalid(res, 'Default password must be between 8 and 72 bytes.')
+        }
+        const email = String(payload.email || '').trim().toLowerCase()
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return invalid(res, 'Enter a valid organization email address.')
+        }
+        if (await User.exists({ email })) {
+            return res.status(409).json({ success: false, message: 'An account with this email already exists.' })
+        }
+        let organization
+        await session.withTransaction(async () => {
+            organization = new Organization({
+                ...payload,
+                email,
+                createdBy: req.user._id
+            })
+            await organization.save({ session })
+            const [account] = await User.create([{
+                name: organization.organizationName,
+                email,
+                password: await bcrypt.hash(initialPassword, 12),
+                phone: organization.phone,
+                role: USER_ROLES.organization,
+                organizationId: organization._id
+            }], { session })
+            organization.userAccount = account._id
+            await organization.save({ session })
         })
         await writeOperationalAudit({
             actor: req.user._id,
             action: 'organization.created',
             entityType: 'Organization',
             entityId: organization._id,
-            details: { organizationId: organization.organizationId, organizationName: organization.organizationName, organizationType: organization.organizationType }
+            details: {
+                organizationId: organization.organizationId,
+                organizationName: organization.organizationName,
+                organizationType: organization.organizationType,
+                accountEmail: organization.email
+            }
         })
-        res.status(201).json({ success: true, organization })
+        res.status(201).json({
+            success: true,
+            organization: organization.toJSON(),
+            account: { email: organization.email, status: organization.status }
+        })
     } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({ success: false, message: 'An organization or account with these details already exists.' })
+        }
         next(error)
+    } finally {
+        await session.endSession()
     }
 }
 
@@ -333,14 +378,35 @@ export const getOrganization = async (req, res, next) => {
 }
 
 export const updateOrganization = async (req, res, next) => {
+    const session = await mongoose.startSession()
     try {
         if (!validId(req.params.organizationId)) return invalid(res, 'Invalid organization id.')
         const updates = organizationPayload(req.body)
-        const organization = await Organization.findByIdAndUpdate(
-            req.params.organizationId,
-            { $set: updates },
-            { new: true, runValidators: true }
-        )
+        const email = String(updates.email || '').trim().toLowerCase()
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return invalid(res, 'Enter a valid organization email address.')
+        let organization
+        await session.withTransaction(async () => {
+            organization = await Organization.findById(req.params.organizationId).session(session)
+            if (!organization) return
+            const accountId = organization.userAccount
+            if (accountId) {
+                const duplicate = await User.findOne({ email, _id: { $ne: accountId } }).session(session).select('_id')
+                if (duplicate) {
+                    const error = new Error('An account with this email already exists.')
+                    error.statusCode = 409
+                    throw error
+                }
+            }
+            organization.set({ ...updates, email })
+            await organization.save({ session })
+            if (accountId) {
+                await User.updateOne(
+                    { _id: accountId, organizationId: organization._id },
+                    { $set: { email, name: organization.organizationName, phone: organization.phone } },
+                    { session, runValidators: true }
+                )
+            }
+        })
         if (!organization) return notFound(res, 'Organization not found.')
         await writeOperationalAudit({
             actor: req.user._id,
@@ -351,7 +417,11 @@ export const updateOrganization = async (req, res, next) => {
         })
         res.json({ success: true, organization })
     } catch (error) {
+        if (error.statusCode === 409) return res.status(409).json({ success: false, message: error.message })
+        if (error.code === 11000) return res.status(409).json({ success: false, message: 'An account with this email already exists.' })
         next(error)
+    } finally {
+        await session.endSession()
     }
 }
 

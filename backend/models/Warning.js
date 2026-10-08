@@ -8,21 +8,20 @@ const warningSchema = new mongoose.Schema(
             trim: true,
             maxlength: 160
         },
+        // Optional because NGO disaster appeals and DMC safety warnings share this model;
+        // the NGO creation endpoint still requires these appeal-specific fields.
         city: {
             type: String,
-            required: true,
             trim: true,
             maxlength: 100
         },
         summary: {
             type: String,
-            required: true,
             trim: true,
             maxlength: 2000
         },
         topNeeds: {
             type: String,
-            required: true,
             trim: true,
             maxlength: 500
         },
@@ -70,7 +69,7 @@ const warningSchema = new mongoose.Schema(
                 },
                 severity: {
                     type: String,
-                    enum: ['advisory', 'watch', 'warning', 'emergency'],
+                    enum: ['Low', 'Medium', 'High', 'Critical', 'advisory', 'watch', 'warning', 'emergency'],
                     default: null
                 },
                 affectedAreaIds: [{

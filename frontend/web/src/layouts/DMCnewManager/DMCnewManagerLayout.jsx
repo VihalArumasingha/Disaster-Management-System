@@ -37,7 +37,7 @@ const NAV_ITEMS = [
     { label: 'Impact Monitoring', icon: Activity, to: '/ngomanager/impact-monitoring' },
     { label: 'Impact Analysis & Reports', icon: BarChart3, to: '/ngomanager/analytics-reports' },
     { label: 'Shelter Management', icon: Building2, to: '/ngomanager/shelters' },
-    { label: 'Organizations', icon: Handshake, to: '/ngomanager/organizations' },
+    { label: 'Organization Management', icon: Handshake, to: '/ngomanager/organizations' },
     { label: 'NGO Past', icon: History, to: '/ngomanager/past' },
 ]
 

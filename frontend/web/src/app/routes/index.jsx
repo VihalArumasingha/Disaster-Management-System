@@ -3,86 +3,31 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import Home from '../../components/ui/Home'
 import AuthPage from '../../auth/components/AuthPage'
-import {
-    StaffDashboard
-} from '../../auth/components/RoleDashboard'
-
+import { StaffDashboard } from '../../auth/components/RoleDashboard'
+import { USER_ROLES } from '../../constants/roles'
 
 import DmcOfficerLayout from '../../layouts/dmcOfficer/DmcOfficerLayout'
 import DutyOfficerLayout from '../../layouts/dutyOfficer/DutyOfficerLayout'
-import NgoManagerLayout from '../../layouts/DMCnewManager/DMCnewManagerLayout'
+import NgoManagerLayout from '../../layouts/DMCnewManager/DMCnewManagerLayout.jsx'
+import OrganizationLayout from '../../layouts/organization/OrganizationLayout.jsx'
 
-/* =========================
-   DMC OFFICER
-========================= */
+const DmcDashboardPage = lazy(() => import('../../roles/dmcOfficer/pages/DmcDashboardPage'))
+const EscalatedReportsPage = lazy(() => import('../../roles/dmcOfficer/pages/EscalatedReportsPage'))
+const HazardReviewQueue = lazy(() => import('../../roles/dmcOfficer/pages/HazardReviewQueue'))
+const HazardClusterDetails = lazy(() => import('../../roles/dmcOfficer/pages/HazardClusterDetails'))
+const WarningsPage = lazy(() => import('../../roles/dmcOfficer/pages/WarningsPage'))
+const CreateWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateWarningPage'))
+const ReviewWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/ReviewWarningPage'))
+const WarningUpdatePage = lazy(() => import('../../roles/dmcOfficer/pages/WarningUpdatePage'))
+const TargetAreasPage = lazy(() => import('../../roles/dmcOfficer/pages/TargetAreasPage'))
+const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateTargetAreaPage'))
+const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
 
-const DmcDashboardPage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/DmcDashboardPage')
-)
-
-const EscalatedReportsPage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/EscalatedReportsPage')
-)
-
-const HazardReviewQueue = lazy(() =>
-    import('../../roles/dmcOfficer/pages/HazardReviewQueue')
-)
-
-const HazardClusterDetails = lazy(() =>
-    import('../../roles/dmcOfficer/pages/HazardClusterDetails')
-)
-
-const WarningsPage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/WarningsPage')
-)
-
-const CreateWarningPage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/CreateWarningPage')
-)
-
-const ReviewWarningPage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/ReviewWarningPage')
-)
-
-const WarningUpdatePage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/WarningUpdatePage')
-)
-
-const TargetAreasPage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/TargetAreasPage')
-)
-
-const CreateTargetAreaPage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/CreateTargetAreaPage')
-)
-
-const DmcProfilePage = lazy(() =>
-    import('../../roles/dmcOfficer/pages/DmcProfilePage')
-)
-
-/* =========================
-   DUTY OFFICER
-========================= */
-
-const DutyOfficerDashboardPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerDashboardPage')
-)
-
-const DutyOfficerClusterDetailsPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerClusterDetailsPage')
-)
-
-const DutyOfficerReportClustersPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerReportClustersPage')
-)
-
-const DutyOfficerReportsPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerReportsPage')
-)
-
-const DutyOfficerReportDetailsPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerReportDetailsPage')
-)
+const DutyOfficerDashboardPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerDashboardPage'))
+const DutyOfficerClusterDetailsPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerClusterDetailsPage'))
+const DutyOfficerReportClustersPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerReportClustersPage'))
+const DutyOfficerReportsPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerReportsPage'))
+const DutyOfficerReportDetailsPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerReportDetailsPage'))
 
 const DutyOfficerProfilePage = lazy(() =>
     import('../../roles/dutyOfficer/pages/DutyOfficerProfilePage')
@@ -92,72 +37,36 @@ const DutyOfficerSettingsPage = lazy(() =>
     import('../../roles/dutyOfficer/pages/DutyOfficerSettingsPage')
 )
 
+const ShelterManagementPage = lazy(() => import('../../components/DMCnewDashboard/ShelterManagement.jsx'))
+const OrganizationManagementPage = lazy(() => import('../../components/DMCnewDashboard/OrganizationManagement.jsx'))
+const ReliefSupplyManagementPage = lazy(() => import('../../components/DMCnewDashboard/ReliefSupplyManagement.jsx'))
+const ImpactMonitoringPage = lazy(() => import('../../components/DMCnewDashboard/ImpactMonitoring.jsx'))
+const AnalyticsReportsPage = lazy(() => import('../../components/DMCnewDashboard/AnalyticsReports.jsx'))
+
 /* =========================
-   NGO MANAGER
+   NGO MANAGER PAGES
 ========================= */
 
-const ShelterManagementPage = lazy(() =>
-    import('../../components/DMCnewDashboard/ShelterManagement.jsx')
-)
+const DonationPage = lazy(() => import('../../components/DMCnewDashboard/Donationpage.jsx'))
+const DonationFormPage = lazy(() => import('../../components/DMCnewDashboard/DonationForm.jsx'))
+const EditDonationPage = lazy(() => import('../../components/DMCnewDashboard/editdonatemoney.jsx'))
+const ActiveDisasterPage = lazy(() => import('../../components/DMCnewDashboard/activedisaster.jsx'))
+const DisasterFormPage = lazy(() => import('../../components/DMCnewDashboard/DisasterForm.jsx'))
+const CollectingCentersPage = lazy(() => import('../../components/DMCnewDashboard/center.jsx'))
+const AssignReliefPage = lazy(() => import('../../components/DMCnewDashboard/assignreliefpage.jsx'))
+const InventoryPage = lazy(() => import('../../components/DMCnewDashboard/inventory page.jsx'))
+const VolunteerPage = lazy(() => import('../../components/DMCnewDashboard/volunteerpage.jsx'))
+const EditVolunteerPage = lazy(() => import('../../components/DMCnewDashboard/editvolunteer.jsx'))
+const ReliefDistributionPage = lazy(() => import('../../components/DMCnewDashboard/distributionpage.jsx'))
+const NgoPastPage = lazy(() => import('../../components/DMCnewDashboard/ngopast.jsx'))
+const OverviewPage = lazy(() => import('../../components/DMCnewDashboard/OverviewPage.jsx'))
 
-const OrganizationManagementPage = lazy(() =>
-    import('../../components/DMCnewDashboard/OrganizationManagement.jsx')
-)
+/* =========================
+   ORGANIZATION PORTAL
+========================= */
 
-const ReliefSupplyManagementPage = lazy(() =>
-    import('../../components/DMCnewDashboard/ReliefSupplyManagement.jsx')
-)
-
-const DonationPage = lazy(() =>
-    import('../../components/DMCnewDashboard/Donationpage.jsx')
-)
-
-const DonationFormPage = lazy(() =>
-    import('../../components/DMCnewDashboard/DonationForm.jsx')
-)
-
-const EditDonationPage = lazy(() =>
-    import('../../components/DMCnewDashboard/editdonatemoney.jsx')
-)
-
-const ActiveDisasterPage = lazy(() =>
-    import('../../components/DMCnewDashboard/activedisaster.jsx')
-)
-
-const DisasterFormPage = lazy(() =>
-    import('../../components/DMCnewDashboard/DisasterForm.jsx')
-)
-
-const CollectingCentersPage = lazy(() =>
-    import('../../components/DMCnewDashboard/center.jsx')
-)
-
-const AssignReliefPage = lazy(() =>
-    import('../../components/DMCnewDashboard/assignreliefpage.jsx')
-)
-
-const InventoryPage = lazy(() =>
-    import('../../components/DMCnewDashboard/inventory page.jsx')
-)
-
-const VolunteerPage = lazy(() =>
-    import('../../components/DMCnewDashboard/volunteerpage.jsx')
-)
-
-const EditVolunteerPage = lazy(() =>
-    import('../../components/DMCnewDashboard/editvolunteer.jsx')
-)
-
-const ReliefDistributionPage = lazy(() =>
-    import('../../components/DMCnewDashboard/distributionpage.jsx')
-)
-
-const NgoPastPage = lazy(() =>
-    import('../../components/DMCnewDashboard/ngopast.jsx')
-)
-
-const OverviewPage = lazy(() =>
-    import('../../components/DMCnewDashboard/OverviewPage.jsx')
+const OrganizationPortalPage = lazy(() =>
+    import('../../components/organization/OrganizationPortalPage.jsx')
 )
 
 /* =========================
@@ -179,42 +88,18 @@ const withLoading = (page) => (
 function AppRoutes() {
     return (
         <Routes>
-            {/* =========================
-                PUBLIC
-            ========================= */}
 
-            <Route
-                path="/"
-                element={<Home />}
-            />
+            {/* ─────── PUBLIC ─────── */}
 
-            <Route
-                path="/login"
-                element={<AuthPage mode="login" />}
-            />
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route path="/dashboard" element={<StaffDashboard />} />
 
-            <Route
-                path="/register"
-                element={<AuthPage mode="register" />}
-            />
+            {/* ─────── DMC OFFICER ─────── */}
 
-            {/* =========================
-                STAFF DASHBOARD
-            ========================= */}
+            <Route path="/dmcofficer" element={<DmcOfficerLayout />}>
 
-            <Route
-                path="/dashboard"
-                element={<StaffDashboard />}
-            />
-
-            {/* =========================
-                DMC OFFICER
-            ========================= */}
-
-            <Route
-                path="/dmcofficer"
-                element={<DmcOfficerLayout />}
-            >
                 <Route
                     index
                     element={<Navigate to="dashboard" replace />}
@@ -323,7 +208,22 @@ function AppRoutes() {
                     element={withLoading(
                         <ReliefSupplyManagementPage
                             initialTab="distributions"
+                            canAudit
                         />
+                    )}
+                />
+
+                <Route
+                    path="impact-monitoring"
+                    element={withLoading(
+                        <ImpactMonitoringPage canEdit />
+                    )}
+                />
+
+                <Route
+                    path="analytics-reports"
+                    element={withLoading(
+                        <AnalyticsReportsPage />
                     )}
                 />
 
@@ -333,16 +233,16 @@ function AppRoutes() {
                         <DmcProfilePage />
                     )}
                 />
+
             </Route>
 
-            {/* =========================
-                DUTY OFFICER
-            ========================= */}
+            {/* ─────── DUTY OFFICER ─────── */}
 
             <Route
                 path="/dutyofficer"
                 element={<DutyOfficerLayout />}
             >
+
                 <Route
                     index
                     element={<Navigate to="dashboard" replace />}
@@ -393,6 +293,8 @@ function AppRoutes() {
                     }
                 />
 
+                {/* Duty Officer Profile */}
+
                 <Route
                     path="profile"
                     element={withLoading(
@@ -400,22 +302,82 @@ function AppRoutes() {
                     )}
                 />
 
+                {/* Duty Officer Settings */}
+
                 <Route
                     path="settings"
                     element={withLoading(
                         <DutyOfficerSettingsPage />
                     )}
                 />
+
             </Route>
 
-            {/* =========================
-                NGO MANAGER
-            ========================= */}
+            {/* ─────── ORGANIZATION PORTAL ─────── */}
+
+            <Route
+                path="/organization"
+                element={<OrganizationLayout />}
+            >
+
+                <Route
+                    index
+                    element={<Navigate to="dashboard" replace />}
+                />
+
+                <Route
+                    path="dashboard"
+                    element={withLoading(
+                        <OrganizationPortalPage view="dashboard" />
+                    )}
+                />
+
+                <Route
+                    path="profile"
+                    element={withLoading(
+                        <OrganizationPortalPage view="profile" />
+                    )}
+                />
+
+                <Route
+                    path="donations"
+                    element={withLoading(
+                        <OrganizationPortalPage view="donations" />
+                    )}
+                />
+
+                <Route
+                    path="relief"
+                    element={withLoading(
+                        <ReliefSupplyManagementPage
+                            apiBase="/organization"
+                        />
+                    )}
+                />
+
+                <Route
+                    path="activities"
+                    element={withLoading(
+                        <OrganizationPortalPage view="activities" />
+                    )}
+                />
+
+                <Route
+                    path="disasters"
+                    element={withLoading(
+                        <OrganizationPortalPage view="disasters" />
+                    )}
+                />
+
+            </Route>
+
+            {/* ─────── NGO MANAGER ─────── */}
 
             <Route
                 path="/ngomanager"
                 element={<NgoManagerLayout />}
             >
+
                 <Route
                     index
                     element={<Navigate to="dashboard" replace />}
@@ -455,6 +417,25 @@ function AppRoutes() {
                         <ReliefSupplyManagementPage
                             apiBase="/ngomanager"
                             initialTab="distributions"
+                        />
+                    )}
+                />
+
+                <Route
+                    path="impact-monitoring"
+                    element={withLoading(
+                        <ImpactMonitoringPage
+                            apiBase="/ngomanager"
+                            canEdit
+                        />
+                    )}
+                />
+
+                <Route
+                    path="analytics-reports"
+                    element={withLoading(
+                        <AnalyticsReportsPage
+                            apiBase="/ngomanager"
                         />
                     )}
                 />
@@ -556,11 +537,10 @@ function AppRoutes() {
                         <NgoPastPage />
                     )}
                 />
+
             </Route>
 
-            {/* =========================
-                NOT FOUND
-            ========================= */}
+            {/* ─────── NOT FOUND ─────── */}
 
             <Route
                 path="*"
@@ -572,6 +552,7 @@ function AppRoutes() {
                     </div>
                 }
             />
+
         </Routes>
     )
 }
