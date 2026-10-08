@@ -39,7 +39,20 @@ const reliefDistributionSchema = new mongoose.Schema(
             enum: ['Pending Verification', 'Verified', 'Rejected', 'Flagged'],
             default: 'Pending Verification',
             required: true
-        }
+        },
+        verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        verifiedAt: { type: Date, default: null },
+        verificationNotes: { type: String, trim: true, maxlength: 2000, default: '' },
+        auditHistory: [{
+            auditStatus: {
+                type: String,
+                enum: ['Pending Verification', 'Verified', 'Rejected', 'Flagged'],
+                required: true
+            },
+            notes: { type: String, trim: true, maxlength: 2000, default: '' },
+            changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+            changedAt: { type: Date, default: Date.now, required: true }
+        }]
     },
     { timestamps: true }
 )
