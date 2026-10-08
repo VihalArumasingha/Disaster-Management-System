@@ -1,26 +1,26 @@
 import { describe, it, expect } from 'vitest'
 
-describe('Warning Test Setup', () => {
+describe('Sewmini Test Folder', () => {
 
-    // POSITIVE: verifies a valid warning severity
-    it('should accept a high severity warning', () => {
-        const severity = 'High'
+    // POSITIVE: verifies that basic calculation works
+    it('should correctly add two numbers', () => {
+        const result = 10 + 5
 
-        expect(severity).toBe('High')
+        expect(result).toBe(15)
     })
 
-    // NEGATIVE: verifies an invalid severity is rejected
-    it('should reject an invalid warning severity', () => {
-        const severity = 'Unknown'
+    // EDGE: verifies multiplication by zero
+    it('should return zero when multiplying by zero', () => {
+        const result = 10 * 0
 
-        expect(['Low', 'Medium', 'High', 'Critical']).not.toContain(severity)
+        expect(result).toBe(0)
     })
 
-    // EDGE: verifies the maximum warning title length
-    it('should support a 160 character warning title', () => {
-        const title = 'A'.repeat(160)
+    // NEGATIVE: verifies that an incorrect result fails the expected condition
+    it('should confirm that 10 + 5 is not 20', () => {
+        const result = 10 + 5
 
-        expect(title.length).toBe(160)
+        expect(result).not.toBe(20)
     })
 
 })
