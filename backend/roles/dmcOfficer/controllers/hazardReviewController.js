@@ -8,7 +8,8 @@ import {
 import {
     evaluateWarningEscalation,
     createEscalationHandoff,
-    getEscalationByCluster
+    getEscalationByCluster,
+    getIncomingHazardEscalations as listIncomingHazardEscalations
 } from '../services/warningEscalationService.js'
 
 export const getReviewQueue = async (
@@ -123,7 +124,7 @@ export const rejectReport = async (
 }
 
 /*
- * DMC Officer checks whether the cluster
+ * Duty Officer checks whether the cluster
  * currently meets escalation criteria.
  */
 export const checkEscalation = async (
@@ -154,12 +155,12 @@ export const checkEscalation = async (
 }
 
 /*
- * DMC Officer explicitly sends the
- * escalation to the Duty Officer.
+ * Duty Officer explicitly sends the
+ * escalation to the DMC Officer.
  *
  * This does NOT issue a warning.
  */
-export const escalateToDutyOfficer = async (
+export const escalateToDmcOfficer = async (
     req,
     res,
     next
@@ -181,7 +182,7 @@ export const escalateToDutyOfficer = async (
         res.status(201).json({
             success: true,
             message:
-                'Hazard escalation sent to Duty Officer',
+                'Hazard escalation sent to DMC Officer',
             data: escalation
         })
     } catch (error) {
@@ -209,12 +210,30 @@ export const getClusterEscalation = async (
     }
 }
 
+export const getIncomingHazardEscalations = async (
+    req,
+    res,
+    next
+) => {
+    try {
+        const escalations = await listIncomingHazardEscalations()
+
+        res.status(200).json({
+            success: true,
+            data: escalations
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 export default {
     getReviewQueue,
     getReviewCluster,
     verifyReport,
     rejectReport,
     checkEscalation,
-    escalateToDutyOfficer,
+    escalateToDmcOfficer,
+    getIncomingHazardEscalations,
     getClusterEscalation
 }

@@ -96,7 +96,7 @@ export const evaluateWarningEscalation = async (
 
 /*
  * Creates the actual persistent handoff from
- * DMC Officer → Duty Officer.
+ * Duty Officer → DMC Officer.
  *
  * This does NOT create a Warning.
  * This does NOT send notifications.
@@ -122,13 +122,19 @@ export const createEscalationHandoff = async (
         throw error
     }
 
-    const existing =
-        await HazardEscalation.findOne({
-            clusterId,
-            status: 'pending_duty_verification'
-        })
+    const existing = await HazardEscalation.findOne({ clusterId })
 
     if (existing) {
+        if (existing.status !== 'pending_dmc_review') {
+            const error = new Error(
+                'An escalation already exists for this cluster'
+            )
+
+            error.statusCode = 409
+
+            throw error
+        }
+
         return existing
             .populate([
                 {
@@ -170,7 +176,7 @@ export const createEscalationHandoff = async (
                 new Date(),
 
             status:
-                'pending_duty_verification'
+                'pending_dmc_review'
         })
 
     return escalation
@@ -206,8 +212,31 @@ export const getEscalationByCluster = async (
         )
 }
 
+export const getIncomingHazardEscalations = async () => {
+    return HazardEscalation.find({
+        status: 'pending_dmc_review'
+    })
+        .populate({
+            path: 'clusterId',
+            populate: {
+                path: 'reportIds',
+                select: 'hazardType description location capturedAt submittedAt status photo'
+            }
+        })
+        .populate(
+            'verifiedReportIds',
+            'hazardType description location capturedAt submittedAt status photo'
+        )
+        .populate(
+            'escalatedBy',
+            'name email role'
+        )
+        .sort({ escalatedAt: -1 })
+}
+
 export default {
     evaluateWarningEscalation,
     createEscalationHandoff,
-    getEscalationByCluster
+    getEscalationByCluster,
+    getIncomingHazardEscalations
 }

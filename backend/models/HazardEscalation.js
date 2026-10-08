@@ -55,12 +55,13 @@ const hazardEscalationSchema = new mongoose.Schema(
         status: {
             type: String,
             enum: [
+                'pending_dmc_review',
                 'pending_duty_verification',
                 'approved',
                 'rejected',
                 'cancelled'
             ],
-            default: 'pending_duty_verification',
+            default: 'pending_dmc_review',
             required: true,
             index: true
         },
