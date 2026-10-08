@@ -1,22 +1,22 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
-import { Building2, Handshake, LogOut, Menu, Package, ShieldAlert, Truck, X } from 'lucide-react'
+import { Building2, Handshake, HeartHandshake, History, LayoutDashboard, LogOut, Menu, Package, PackageCheck, ShieldAlert, Siren, Truck, Users, Warehouse, X } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { dashboardPathForRole } from '../../auth/utils/dashboardPaths'
 import { USER_ROLES } from '../../constants/roles'
 
 const NAV_ITEMS = [
-    { label: 'Overview', to: '/ngomanager/dashboard' },
-    { label: 'Donations', to: '/ngomanager/donations' },
-    { label: 'Active Disasters', to: '/ngomanager/active-disasters' },
-    { label: 'Relief Quantities', to: '/ngomanager/relief-quantities' },
-    { label: 'Collecting Centers', to: '/ngomanager/collecting-centers' },
-    { label: 'Volunteers & Assignments', to: '/ngomanager/volunteers' },
-    { label: 'Relief Distribution', to: '/ngomanager/relief-distribution' },
+    { label: 'Overview', icon: LayoutDashboard, to: '/ngomanager/dashboard' },
+    { label: 'Donations', icon: HeartHandshake, to: '/ngomanager/donations' },
+    { label: 'Active Disasters', icon: Siren, to: '/ngomanager/active-disasters' },
+    { label: 'Relief Quantities', icon: Package, to: '/ngomanager/relief-quantities' },
+    { label: 'Collecting Centers', icon: Warehouse, to: '/ngomanager/collecting-centers' },
+    { label: 'Volunteers & Assignments', icon: Users, to: '/ngomanager/volunteers' },
+    { label: 'Relief Distribution', icon: PackageCheck, to: '/ngomanager/relief-distribution' },
     { label: 'Supply Distribution Audit', icon: Truck, to: '/ngomanager/relief-distributions' },
     { label: 'Shelter Management', icon: Building2, to: '/ngomanager/shelters' },
     { label: 'Organizations', icon: Handshake, to: '/ngomanager/organizations' },
-    { label: 'NGO Past', to: '/ngomanager/past' },
+    { label: 'NGO Past', icon: History, to: '/ngomanager/past' },
 ]
 
 const linkClass = ({ isActive }) =>
