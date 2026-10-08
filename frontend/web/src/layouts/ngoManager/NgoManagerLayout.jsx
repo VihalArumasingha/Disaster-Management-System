@@ -1,19 +1,22 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, ShieldAlert, X } from 'lucide-react'
+import { Building2, Handshake, LogOut, Menu, Package, ShieldAlert, Truck, X } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { dashboardPathForRole } from '../../auth/utils/dashboardPaths'
 import { USER_ROLES } from '../../constants/roles'
 
 const NAV_ITEMS = [
-    { label: 'Overview',                emoji: '🟥', to: '/ngomanager/dashboard' },
-    { label: 'Donations',               emoji: '🥰', to: '/ngomanager/donations' },
-    { label: 'Active Disasters',        emoji: '🌋', to: '/ngomanager/active-disasters' },
-    { label: 'Relief Quantities',       emoji: '📦', to: '/ngomanager/relief-quantities' },
-    { label: 'Collecting Centers',      emoji: '📍', to: '/ngomanager/collecting-centers' },
-    { label: 'Volunteers & Assignments',emoji: '👫', to: '/ngomanager/volunteers' },
-    { label: 'Relief Distribution',     emoji: '📘', to: '/ngomanager/relief-distribution' },
-    { label: 'NGO Past',                emoji: '📋', to: '/ngomanager/past' },
+    { label: 'Overview', to: '/ngomanager/dashboard' },
+    { label: 'Donations', to: '/ngomanager/donations' },
+    { label: 'Active Disasters', to: '/ngomanager/active-disasters' },
+    { label: 'Relief Quantities', to: '/ngomanager/relief-quantities' },
+    { label: 'Collecting Centers', to: '/ngomanager/collecting-centers' },
+    { label: 'Volunteers & Assignments', to: '/ngomanager/volunteers' },
+    { label: 'Relief Distribution', to: '/ngomanager/relief-distribution' },
+    { label: 'Supply Distribution Audit', icon: Truck, to: '/ngomanager/relief-distributions' },
+    { label: 'Shelter Management', icon: Building2, to: '/ngomanager/shelters' },
+    { label: 'Organizations', icon: Handshake, to: '/ngomanager/organizations' },
+    { label: 'NGO Past', to: '/ngomanager/past' },
 ]
 
 const linkClass = ({ isActive }) =>
@@ -76,7 +79,7 @@ function NgoManagerLayout({ children }) {
 
             {/* Nav */}
             <nav aria-label="NGO Manager navigation" className="mt-5 flex-1 space-y-1 overflow-y-auto">
-                {NAV_ITEMS.map(({ label, emoji, to }) => (
+                {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
                     <NavLink
                         key={to}
                         to={to}
@@ -84,7 +87,7 @@ function NgoManagerLayout({ children }) {
                         className={linkClass}
                         onClick={closeMobile}
                     >
-                        <span className="text-lg leading-none">{emoji}</span>
+                        {Icon ? <Icon size={18} /> : <span className="w-[18px]" aria-hidden="true" />}
                         {label}
                     </NavLink>
                 ))}

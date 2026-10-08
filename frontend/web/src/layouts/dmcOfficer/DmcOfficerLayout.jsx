@@ -3,13 +3,17 @@ import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-route
 import {
     AlertTriangle,
     Bell,
+    Building2,
     ChevronDown,
     ClipboardList,
     LayoutDashboard,
     LogOut,
     Map,
     Menu,
+    Network,
+    Package,
     ShieldAlert,
+    Truck,
     UserRound,
     X
 } from 'lucide-react'
@@ -154,6 +158,19 @@ function DmcOfficerLayout() {
                             </NavLink>
                         </div>
                     )}
+
+                    <NavLink to="/dmcofficer/shelters" className={linkClass} onClick={closeMobile}>
+                        <Building2 size={18} /> Shelter Management
+                    </NavLink>
+                    <NavLink to="/dmcofficer/organizations" className={linkClass} onClick={closeMobile}>
+                        <Network size={18} /> Organizations
+                    </NavLink>
+                    <NavLink to="/dmcofficer/relief-supplies" className={linkClass} onClick={closeMobile}>
+                        <Package size={18} /> Relief Supplies
+                    </NavLink>
+                    <NavLink to="/dmcofficer/relief-distributions" className={linkClass} onClick={closeMobile}>
+                        <Truck size={18} /> Relief Distribution
+                    </NavLink>
 
                     <NavLink to="/dmcofficer/profile" className={linkClass} onClick={closeMobile}>
                         <UserRound size={18} /> Profile
