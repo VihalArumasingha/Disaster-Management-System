@@ -14,7 +14,7 @@ const HazardClusterDetails = lazy(() => import('../../roles/dmcOfficer/pages/Haz
 const WarningsPage = lazy(() => import('../../roles/dmcOfficer/pages/WarningsPage'))
 const CreateWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateWarningPage'))
 const ReviewWarningPage = lazy(() => import('../../roles/dmcOfficer/pages/ReviewWarningPage'))
-const WarningUpdatePage = lazy(() => import('../../roles/dmcOfficer/pages/WarningUpdatePage'))
+const WarningUpdatePage = lazy(() => import('../../roles/dmcOfficer/pages/WarningUpdatePage')) 
 const TargetAreasPage = lazy(() => import('../../roles/dmcOfficer/pages/TargetAreasPage'))
 const CreateTargetAreaPage = lazy(() => import('../../roles/dmcOfficer/pages/CreateTargetAreaPage'))
 const DmcProfilePage = lazy(() => import('../../roles/dmcOfficer/pages/DmcProfilePage'))
