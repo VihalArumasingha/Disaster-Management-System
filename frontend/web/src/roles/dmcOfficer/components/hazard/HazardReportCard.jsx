@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Clock3, Image, MapPin, UserRound } from 'lucide-react'
+import { ArrowRight, Clock3, Image, MapPin, UserRound } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import VerificationActions from './VerificationActions'
 
 const titleCase = (value) => String(value || 'Unknown')
@@ -42,7 +43,7 @@ const statusStyles = {
 	rejected: 'bg-red-50 text-red-800 ring-red-200'
 }
 
-function HazardReportCard({ report, onVerify, onReject, actionsDisabled = false, actionBusy = false }) {
+function HazardReportCard({ report, onVerify, onReject, actionsDisabled = false, actionBusy = false, detailsUrl = null }) {
 	const [photoFailed, setPhotoFailed] = useState(false)
 	const reporter = getReporter(report.reporterId)
 	const coordinates = getCoordinates(report.location)
@@ -52,6 +53,15 @@ function HazardReportCard({ report, onVerify, onReject, actionsDisabled = false,
 	const verifiedBy = verification.verifiedBy && typeof verification.verifiedBy === 'object'
 		? verification.verifiedBy.name || verification.verifiedBy.email
 		: null
+
+	const openReportAction = detailsUrl ? (
+		<Link
+			to={detailsUrl}
+			className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+		>
+			Open Report <ArrowRight size={16} />
+		</Link>
+	) : null
 
 	return (
 		<article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -109,9 +119,15 @@ function HazardReportCard({ report, onVerify, onReject, actionsDisabled = false,
 				</div>
 			</div>
 
-			{status === 'pending' && (
+			{(status === 'pending' || detailsUrl) && (
 				<div className="border-t border-slate-100 px-5 py-4">
-					<VerificationActions onVerify={onVerify} onReject={onReject} disabled={actionsDisabled} busy={actionBusy} />
+					{status === 'pending' ? (
+						<VerificationActions onVerify={onVerify} onReject={onReject} disabled={actionsDisabled} busy={actionBusy} extraAction={openReportAction} />
+					) : (
+						<div className="flex flex-wrap gap-2">
+							{openReportAction}
+						</div>
+					)}
 				</div>
 			)}
 		</article>

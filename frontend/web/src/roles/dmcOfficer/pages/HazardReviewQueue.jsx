@@ -55,7 +55,7 @@ function HazardReviewClusterDetail({ clusterId }) {
 
 	return (
 		<main className="mx-auto max-w-7xl px-5 pb-12 pt-20 sm:px-8 lg:pt-10">
-			<Link to="/dmcofficer/hazard-reviews" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900">
+			<Link to="/dutyofficer/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900">
 				<ArrowLeft size={16} /> Back to report clusters
 			</Link>
 			{loading ? (
@@ -155,7 +155,7 @@ function HazardReviewQueueList() {
 				<section className="mt-8 rounded-xl border border-slate-200 bg-white px-6 py-14 text-center">
 					<MapPin className="mx-auto text-slate-400" size={28} />
 					<h2 className="mt-4 text-lg font-semibold text-slate-900">No hazard clusters require review</h2>
-					<p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">New citizen hazard reports will appear here after the system groups nearby reports for DMC review.</p>
+					<p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">New citizen hazard reports will appear here after the system groups nearby reports for Duty Officer review.</p>
 				</section>
 			) : (
 				<section aria-label="Hazard review queue" className="mt-8 space-y-4">

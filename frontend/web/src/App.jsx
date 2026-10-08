@@ -7,12 +7,14 @@ import Footer from './components/ui/Footer'
 function SiteFrame() {
     const { pathname } = useLocation()
     const isDmcWorkspace = pathname.startsWith('/dmcofficer')
+    const isDutyWorkspace = pathname.startsWith('/dutyofficer')
+    const isOperationsWorkspace = isDmcWorkspace || isDutyWorkspace
 
     return (
         <>
-            {!isDmcWorkspace && <Header />}
+            {!isOperationsWorkspace && <Header />}
             <AppRoutes />
-            {!isDmcWorkspace && <Footer />}
+            {!isOperationsWorkspace && <Footer />}
         </>
     )
 }
