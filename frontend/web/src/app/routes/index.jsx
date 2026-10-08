@@ -1,12 +1,21 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+
 import Home from '../../components/ui/Home'
 import AuthPage from '../../auth/components/AuthPage'
-import RoleDashboard, { StaffDashboard } from '../../auth/components/RoleDashboard'
+import RoleDashboard, {
+    StaffDashboard
+} from '../../auth/components/RoleDashboard'
+
 import { USER_ROLES } from '../../constants/roles'
+
 import DmcOfficerLayout from '../../layouts/dmcOfficer/DmcOfficerLayout'
 import DutyOfficerLayout from '../../layouts/dutyOfficer/DutyOfficerLayout'
 import NgoManagerLayout from '../../layouts/ngoManager/NgoManagerLayout'
+
+/* =========================
+   DMC OFFICER
+========================= */
 
 const DmcDashboardPage = lazy(() =>
     import('../../roles/dmcOfficer/pages/DmcDashboardPage')
@@ -14,26 +23,6 @@ const DmcDashboardPage = lazy(() =>
 
 const EscalatedReportsPage = lazy(() =>
     import('../../roles/dmcOfficer/pages/EscalatedReportsPage')
-)
-
-const DutyOfficerDashboardPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerDashboardPage')
-)
-
-const DutyOfficerClusterDetailsPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerClusterDetailsPage')
-)
-
-const DutyOfficerReportClustersPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerReportClustersPage')
-)
-
-const DutyOfficerReportsPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerReportsPage')
-)
-
-const DutyOfficerReportDetailsPage = lazy(() =>
-    import('../../roles/dutyOfficer/pages/DutyOfficerReportDetailsPage')
 )
 
 const WarningsPage = lazy(() =>
@@ -64,9 +53,41 @@ const DmcProfilePage = lazy(() =>
     import('../../roles/dmcOfficer/pages/DmcProfilePage')
 )
 
+/* =========================
+   DUTY OFFICER
+========================= */
+
+const DutyOfficerDashboardPage = lazy(() =>
+    import('../../roles/dutyOfficer/pages/DutyOfficerDashboardPage')
+)
+
+const DutyOfficerClusterDetailsPage = lazy(() =>
+    import('../../roles/dutyOfficer/pages/DutyOfficerClusterDetailsPage')
+)
+
+const DutyOfficerReportClustersPage = lazy(() =>
+    import('../../roles/dutyOfficer/pages/DutyOfficerReportClustersPage')
+)
+
+const DutyOfficerReportsPage = lazy(() =>
+    import('../../roles/dutyOfficer/pages/DutyOfficerReportsPage')
+)
+
+const DutyOfficerReportDetailsPage = lazy(() =>
+    import('../../roles/dutyOfficer/pages/DutyOfficerReportDetailsPage')
+)
+
+/* =========================
+   NGO MANAGER
+========================= */
+
 const DonationPage = lazy(() =>
     import('../../components/NGODashboard/Donationpage.jsx')
 )
+
+/* =========================
+   LOADING
+========================= */
 
 const withLoading = (page) => (
     <Suspense
@@ -83,7 +104,10 @@ const withLoading = (page) => (
 function AppRoutes() {
     return (
         <Routes>
-            {/* Public */}
+            {/* =========================
+                PUBLIC
+            ========================= */}
+
             <Route
                 path="/"
                 element={<Home />}
@@ -99,7 +123,10 @@ function AppRoutes() {
                 element={<AuthPage mode="register" />}
             />
 
-            {/* Staff dashboard */}
+            {/* =========================
+                STAFF DASHBOARD
+            ========================= */}
+
             <Route
                 path="/dashboard"
                 element={<StaffDashboard />}
@@ -108,6 +135,7 @@ function AppRoutes() {
             {/* =========================
                 DMC OFFICER
             ========================= */}
+
             <Route
                 path="/dmcofficer"
                 element={<DmcOfficerLayout />}
@@ -119,58 +147,79 @@ function AppRoutes() {
 
                 <Route
                     path="dashboard"
-                    element={withLoading(<DmcDashboardPage />)}
+                    element={withLoading(
+                        <DmcDashboardPage />
+                    )}
                 />
 
                 <Route
                     path="escalated-reports"
-                    element={withLoading(<EscalatedReportsPage />)}
+                    element={withLoading(
+                        <EscalatedReportsPage />
+                    )}
                 />
 
                 <Route
                     path="warnings"
-                    element={withLoading(<WarningsPage />)}
+                    element={withLoading(
+                        <WarningsPage />
+                    )}
                 />
 
                 <Route
                     path="warnings/create"
-                    element={withLoading(<CreateWarningPage />)}
+                    element={withLoading(
+                        <CreateWarningPage />
+                    )}
                 />
 
                 <Route
                     path="warnings/:warningId/edit"
-                    element={withLoading(<CreateWarningPage />)}
+                    element={withLoading(
+                        <CreateWarningPage />
+                    )}
                 />
 
                 <Route
                     path="warnings/:warningId/review"
-                    element={withLoading(<ReviewWarningPage />)}
+                    element={withLoading(
+                        <ReviewWarningPage />
+                    )}
                 />
 
                 <Route
                     path="warnings/:warningId/update"
-                    element={withLoading(<WarningUpdatePage />)}
+                    element={withLoading(
+                        <WarningUpdatePage />
+                    )}
                 />
 
                 <Route
                     path="target-areas"
-                    element={withLoading(<TargetAreasPage />)}
+                    element={withLoading(
+                        <TargetAreasPage />
+                    )}
                 />
 
                 <Route
                     path="target-areas/create"
-                    element={withLoading(<CreateTargetAreaPage />)}
+                    element={withLoading(
+                        <CreateTargetAreaPage />
+                    )}
                 />
 
                 <Route
                     path="profile"
-                    element={withLoading(<DmcProfilePage />)}
+                    element={withLoading(
+                        <DmcProfilePage />
+                    )}
                 />
             </Route>
 
             {/* =========================
                 DUTY OFFICER
             ========================= */}
+
             <Route
                 path="/dutyofficer"
                 element={<DutyOfficerLayout />}
@@ -182,33 +231,39 @@ function AppRoutes() {
 
                 <Route
                     path="dashboard"
-                    element={withLoading(<DutyOfficerDashboardPage />)}
+                    element={withLoading(
+                        <DutyOfficerDashboardPage />
+                    )}
                 />
 
                 <Route
                     path="hazard-reviews"
-                    element={withLoading(<DutyOfficerReportClustersPage />)}
+                    element={withLoading(
+                        <DutyOfficerReportClustersPage />
+                    )}
                 />
 
                 <Route
                     path="hazard-reviews/clusters/:clusterId"
-                    element={withLoading(<DutyOfficerClusterDetailsPage />)}
+                    element={withLoading(
+                        <DutyOfficerClusterDetailsPage />
+                    )}
                 />
 
-                {/* New Duty Officer report history page */}
                 <Route
                     path="reports"
-                    element={withLoading(<DutyOfficerReportsPage />)}
+                    element={withLoading(
+                        <DutyOfficerReportsPage />
+                    )}
                 />
 
                 <Route
                     path="reports/:reportId"
-                    element={withLoading(<DutyOfficerReportDetailsPage />)}
+                    element={withLoading(
+                        <DutyOfficerReportDetailsPage />
+                    )}
                 />
 
-                {/* Keep old route for compatibility.
-                    Hazard Map is now part of the dashboard
-                    and is no longer a sidebar destination. */}
                 <Route
                     path="hazard-map"
                     element={
@@ -223,6 +278,7 @@ function AppRoutes() {
             {/* =========================
                 NGO MANAGER
             ========================= */}
+
             <Route
                 path="/ngomanager"
                 element={<NgoManagerLayout />}
@@ -243,11 +299,16 @@ function AppRoutes() {
 
                 <Route
                     path="donations"
-                    element={withLoading(<DonationPage />)}
+                    element={withLoading(
+                        <DonationPage />
+                    )}
                 />
             </Route>
 
-            {/* Not found */}
+            {/* =========================
+                NOT FOUND
+            ========================= */}
+
             <Route
                 path="*"
                 element={
