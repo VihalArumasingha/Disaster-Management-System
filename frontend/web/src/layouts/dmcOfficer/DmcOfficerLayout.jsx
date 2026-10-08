@@ -2,18 +2,13 @@ import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
     AlertTriangle,
-    Activity,
     Bell,
-    BarChart3,
-    Building2,
     ChevronDown,
     ClipboardList,
     LayoutDashboard,
     LogOut,
     Map,
     Menu,
-    Network,
-    Package,
     ShieldAlert,
     Truck,
     UserRound,
@@ -160,7 +155,7 @@ function DmcOfficerLayout() {
                             </NavLink>
                         </div>
                     )}
-                    
+
                     <NavLink to="/dmcofficer/relief-distributions" className={linkClass} onClick={closeMobile}>
                         <Truck size={18} /> Relief Distribution
                     </NavLink>

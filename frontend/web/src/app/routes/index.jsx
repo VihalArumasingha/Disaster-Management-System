@@ -6,6 +6,7 @@ import RoleDashboard, { StaffDashboard } from '../../auth/components/RoleDashboa
 import { USER_ROLES } from '../../constants/roles'
 import DmcOfficerLayout from '../../layouts/dmcOfficer/DmcOfficerLayout'
 import NgoManagerLayout from '../../layouts/DMCnewManager/DMCnewManagerLayout.jsx'
+import OrganizationLayout from '../../layouts/organization/OrganizationLayout.jsx'
 
 const DmcDashboardPage = lazy(() => import('../../roles/dmcOfficer/pages/DmcDashboardPage'))
 const EscalatedReportsPage = lazy(() => import('../../roles/dmcOfficer/pages/EscalatedReportsPage'))
@@ -37,6 +38,7 @@ const EditVolunteerPage = lazy(() => import('../../components/DMCnewDashboard/ed
 const ReliefDistributionPage = lazy(() => import('../../components/DMCnewDashboard/distributionpage.jsx'))
 const NgoPastPage = lazy(() => import('../../components/DMCnewDashboard/ngopast.jsx'))
 const OverviewPage = lazy(() => import('../../components/DMCnewDashboard/OverviewPage.jsx'))
+const OrganizationPortalPage = lazy(() => import('../../components/organization/OrganizationPortalPage.jsx'))
 
 
 const withLoading = (page) => (
@@ -70,7 +72,6 @@ function AppRoutes() {
                 <Route path="target-areas" element={withLoading(<TargetAreasPage />)} />
                 <Route path="target-areas/create" element={withLoading(<CreateTargetAreaPage />)} />
                 <Route path="shelters" element={withLoading(<ShelterManagementPage />)} />
-                <Route path="organizations" element={withLoading(<OrganizationManagementPage />)} />
                 <Route path="relief-supplies" element={withLoading(<ReliefSupplyManagementPage />)} />
                 <Route path="relief-distributions" element={withLoading(<ReliefSupplyManagementPage initialTab="distributions" canAudit />)} />
                 <Route path="impact-monitoring" element={withLoading(<ImpactMonitoringPage canEdit />)} />
@@ -78,6 +79,16 @@ function AppRoutes() {
                 <Route path="profile" element={withLoading(<DmcProfilePage />)} />
             </Route>
             <Route path="/dutyofficer/dashboard" element={<RoleDashboard role={USER_ROLES.dutyofficer} />} />
+
+            <Route path="/organization" element={<OrganizationLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={withLoading(<OrganizationPortalPage view="dashboard" />)} />
+                <Route path="profile" element={withLoading(<OrganizationPortalPage view="profile" />)} />
+                <Route path="donations" element={withLoading(<OrganizationPortalPage view="donations" />)} />
+                <Route path="relief" element={withLoading(<ReliefSupplyManagementPage apiBase="/organization" />)} />
+                <Route path="activities" element={withLoading(<OrganizationPortalPage view="activities" />)} />
+                <Route path="disasters" element={withLoading(<OrganizationPortalPage view="disasters" />)} />
+            </Route>
 
             {/* NGO Manager — nested layout */}
             <Route path="/ngomanager" element={<NgoManagerLayout />}>
@@ -87,7 +98,7 @@ function AppRoutes() {
                 <Route path="organizations" element={withLoading(<OrganizationManagementPage apiBase="/ngomanager" />)} />
                 <Route path="relief-supplies" element={withLoading(<ReliefSupplyManagementPage apiBase="/ngomanager" />)} />
                 <Route path="relief-distributions" element={withLoading(<ReliefSupplyManagementPage apiBase="/ngomanager" initialTab="distributions" />)} />
-                <Route path="impact-monitoring" element={withLoading(<ImpactMonitoringPage apiBase="/ngomanager" />)} />
+                <Route path="impact-monitoring" element={withLoading(<ImpactMonitoringPage apiBase="/ngomanager" canEdit={true} />)} />
                 <Route path="analytics-reports" element={withLoading(<AnalyticsReportsPage apiBase="/ngomanager" />)} />
                 <Route path="donations" element={withLoading(<DonationPage />)} />
                 <Route path="donations/new" element={withLoading(<DonationFormPage />)} />

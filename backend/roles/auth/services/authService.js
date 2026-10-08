@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import User from '../../../models/User.js'
+import Organization from '../../../models/Organization.js'
 import { normalizeRole, USER_ROLES } from '../../../utils/constants.js'
 import {
     addCitizenToTargetAreas,
@@ -62,6 +63,16 @@ export const authenticateUser = async ({ email, password, client }) => {
     const role = normalizeRole(user.role)
     const validRoles = Object.values(USER_ROLES)
     const isCitizen = role === USER_ROLES.citizen
+    if (role === USER_ROLES.organization) {
+        const organization = await Organization.findOne({
+            _id: user.organizationId,
+            userAccount: user._id,
+            status: 'Active'
+        }).select('_id')
+        if (!organization) {
+            throw createAuthError('This organization account is not active. Contact the DMC Officer.', 403)
+        }
+    }
 
     if (
         !validRoles.includes(role)
