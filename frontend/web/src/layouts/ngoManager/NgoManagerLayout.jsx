@@ -64,7 +64,7 @@ function NgoManagerLayout({ children }) {
                     </div>
                     <div>
                         <p className="font-bold tracking-wide">SafeZone</p>
-                        <p className="text-xs text-slate-400">NGO operations</p>
+                        <p className="text-xs text-slate-400">DMC operations</p>
                     </div>
                 </div>
                 <button
@@ -78,7 +78,7 @@ function NgoManagerLayout({ children }) {
             </div>
 
             {/* Nav */}
-            <nav aria-label="NGO Manager navigation" className="mt-5 flex-1 space-y-1 overflow-y-auto">
+            <nav aria-label="DMC Officer navigation" className="mt-5 flex-1 space-y-1 overflow-y-auto">
                 {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
                     <NavLink
                         key={to}
@@ -96,7 +96,7 @@ function NgoManagerLayout({ children }) {
             {/* User footer */}
             <div className="border-t border-slate-700/70 px-2 pt-4">
                 <p className="truncate text-sm font-semibold">{user.name}</p>
-                <p className="mt-1 text-xs text-slate-400">NGO Manager</p>
+                <p className="mt-1 text-xs text-slate-400">DMC Officer</p>
                 <button
                     type="button"
                     onClick={signOut}
