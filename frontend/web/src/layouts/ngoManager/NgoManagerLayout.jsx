@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
-import { Building2, Handshake, LogOut, Menu, Package, ShieldAlert, Truck, X } from 'lucide-react'
+import { Activity, BarChart3, Building2, Handshake, LogOut, Menu, ShieldAlert, Truck, X } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { dashboardPathForRole } from '../../auth/utils/dashboardPaths'
 import { USER_ROLES } from '../../constants/roles'
@@ -14,6 +14,8 @@ const NAV_ITEMS = [
     { label: 'Volunteers & Assignments', to: '/ngomanager/volunteers' },
     { label: 'Relief Distribution', to: '/ngomanager/relief-distribution' },
     { label: 'Supply Distribution Audit', icon: Truck, to: '/ngomanager/relief-distributions' },
+    { label: 'Impact Monitoring', icon: Activity, to: '/ngomanager/impact-monitoring' },
+    { label: 'Impact Analysis & Reports', icon: BarChart3, to: '/ngomanager/analytics-reports' },
     { label: 'Shelter Management', icon: Building2, to: '/ngomanager/shelters' },
     { label: 'Organizations', icon: Handshake, to: '/ngomanager/organizations' },
     { label: 'NGO Past', to: '/ngomanager/past' },

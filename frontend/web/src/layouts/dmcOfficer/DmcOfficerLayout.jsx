@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
     AlertTriangle,
+    Activity,
     Bell,
+    BarChart3,
     Building2,
     ChevronDown,
     ClipboardList,
@@ -170,6 +172,12 @@ function DmcOfficerLayout() {
                     </NavLink>
                     <NavLink to="/dmcofficer/relief-distributions" className={linkClass} onClick={closeMobile}>
                         <Truck size={18} /> Relief Distribution
+                    </NavLink>
+                    <NavLink to="/dmcofficer/impact-monitoring" className={linkClass} onClick={closeMobile}>
+                        <Activity size={18} /> Impact Monitoring
+                    </NavLink>
+                    <NavLink to="/dmcofficer/analytics-reports" className={linkClass} onClick={closeMobile}>
+                        <BarChart3 size={18} /> Impact Analysis & Reports
                     </NavLink>
 
                     <NavLink to="/dmcofficer/profile" className={linkClass} onClick={closeMobile}>

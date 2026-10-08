@@ -3,6 +3,7 @@ import Organization from '../../../models/Organization.js'
 import OrganizationContribution from '../../../models/OrganizationContribution.js'
 import Shelter from '../../../models/Shelter.js'
 import ShelterOccupancy from '../../../models/ShelterOccupancy.js'
+import writeOperationalAudit from '../../../utils/operationalAudit.js'
 
 const shelterTypes = ['School', 'Community Hall', 'Religious Facility', 'Government Building', 'Temporary Camp', 'Other']
 const shelterStatuses = ['Active', 'Inactive', 'Full', 'Closed']
@@ -95,6 +96,22 @@ export const createShelter = async (req, res, next) => {
                 }], { session })
             }
         })
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'shelter.created',
+            entityType: 'Shelter',
+            entityId: shelter._id,
+            details: { shelterId: shelter.shelterId, shelterName: shelter.shelterName, district: shelter.district }
+        })
+        if (initialOccupancy > 0) {
+            await writeOperationalAudit({
+                actor: req.user._id,
+                action: 'shelter.occupancy_recorded',
+                entityType: 'Shelter',
+                entityId: shelter._id,
+                details: { shelterId: shelter.shelterId, occupancyCount: initialOccupancy, disasterEvent: shelter.disasterEvent }
+            })
+        }
         res.status(201).json({ success: true, shelter: shelter.toJSON() })
     } catch (error) {
         next(error)
@@ -152,6 +169,13 @@ export const updateShelter = async (req, res, next) => {
         }
 
         await existing.save()
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'shelter.updated',
+            entityType: 'Shelter',
+            entityId: existing._id,
+            details: { shelterId: existing.shelterId, shelterName: existing.shelterName, district: existing.district }
+        })
         res.json({ success: true, shelter: existing.toJSON() })
     } catch (error) {
         next(error)
@@ -176,6 +200,13 @@ export const updateShelterStatus = async (req, res, next) => {
         }
 
         await shelter.save()
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'shelter.status_updated',
+            entityType: 'Shelter',
+            entityId: shelter._id,
+            details: { shelterId: shelter.shelterId, status: shelter.status }
+        })
         res.json({ success: true, shelter: shelter.toJSON() })
     } catch (error) {
         next(error)
@@ -224,6 +255,13 @@ export const recordShelterOccupancy = async (req, res, next) => {
                 disasterEvent: req.body.disasterEvent ?? shelter.disasterEvent
             }], { session })
         })
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'shelter.occupancy_recorded',
+            entityType: 'Shelter',
+            entityId: shelter._id,
+            details: { shelterId: shelter.shelterId, occupancyCount, disasterEvent: shelter.disasterEvent }
+        })
         res.status(201).json({
             success: true,
             shelter: shelter.toJSON(),
@@ -266,6 +304,13 @@ export const createOrganization = async (req, res, next) => {
             ...organizationPayload(req.body),
             createdBy: req.user._id
         })
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'organization.created',
+            entityType: 'Organization',
+            entityId: organization._id,
+            details: { organizationId: organization.organizationId, organizationName: organization.organizationName, organizationType: organization.organizationType }
+        })
         res.status(201).json({ success: true, organization })
     } catch (error) {
         next(error)
@@ -297,6 +342,13 @@ export const updateOrganization = async (req, res, next) => {
             { new: true, runValidators: true }
         )
         if (!organization) return notFound(res, 'Organization not found.')
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'organization.updated',
+            entityType: 'Organization',
+            entityId: organization._id,
+            details: { organizationId: organization.organizationId, organizationName: organization.organizationName }
+        })
         res.json({ success: true, organization })
     } catch (error) {
         next(error)
@@ -315,6 +367,13 @@ export const updateOrganizationStatus = async (req, res, next) => {
             { new: true, runValidators: true }
         )
         if (!organization) return notFound(res, 'Organization not found.')
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'organization.status_updated',
+            entityType: 'Organization',
+            entityId: organization._id,
+            details: { organizationId: organization.organizationId, status: organization.status }
+        })
         res.json({ success: true, organization })
     } catch (error) {
         next(error)
@@ -333,6 +392,13 @@ export const addOrganizationContribution = async (req, res, next) => {
             ...req.body,
             organization: organization._id,
             recordedBy: req.user._id
+        })
+        await writeOperationalAudit({
+            actor: req.user._id,
+            action: 'organization.contribution_recorded',
+            entityType: 'OrganizationContribution',
+            entityId: contribution._id,
+            details: { organizationId: organization.organizationId, contributionType: contribution.contributionType, disasterEvent: contribution.disasterEvent }
         })
         res.status(201).json({ success: true, contribution })
     } catch (error) {

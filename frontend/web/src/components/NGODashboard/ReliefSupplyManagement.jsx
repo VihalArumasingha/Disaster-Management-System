@@ -50,7 +50,7 @@ const fetchReliefManagementData = async (apiBase, search) => {
     }
 }
 
-function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplies' }) {
+function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplies', canAudit = false }) {
     const [tab, setTab] = useState(initialTab)
     const [supplies, setSupplies] = useState([])
     const [distributions, setDistributions] = useState([])
@@ -59,9 +59,11 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [notice, setNotice] = useState('')
-    const [modal, setModal] = useState('')             // 'supply' | 'distribution' | 'supplyDetails' | 'distributionDetails'
+    const [modal, setModal] = useState('')
     const [selectedSupply, setSelectedSupply] = useState(null)
     const [selectedDistribution, setSelectedDistribution] = useState(null)
+    const [auditStatus, setAuditStatus] = useState('Pending Verification')
+    const [verificationNotes, setVerificationNotes] = useState('')
     const [supplyForm, setSupplyForm] = useState(emptySupply)
     const [distributionForm, setDistributionForm] = useState(emptyDistribution)
     const [saving, setSaving] = useState(false)
@@ -149,18 +151,24 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
         }
     }
 
-    const changeAudit = async (distribution, auditStatus) => {
+    const saveAudit = async (event) => {
+        event.preventDefault()
+        if (!selectedDistribution) return
         setError('')
         setNotice('')
+        setSaving(true)
         try {
-            await api.patch(`${apiBase}/relief-distributions/${distribution._id}/audit`, { auditStatus })
+            await api.patch(`${apiBase}/relief-distributions/${selectedDistribution._id}/audit`, {
+                auditStatus,
+                verificationNotes
+            })
             setNotice(`Distribution audit status set to ${auditStatus}.`)
+            setModal('')
             await refresh()
-            if (selectedDistribution?._id === distribution._id) {
-                setSelectedDistribution((current) => current ? { ...current, auditStatus } : current)
-            }
         } catch (requestError) {
             setError(requestError.response?.data?.message || 'Could not update audit status.')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -172,14 +180,14 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
 
     const openDistributionDetails = (distribution) => {
         setSelectedDistribution(distribution)
+        setAuditStatus(distribution.auditStatus)
+        setVerificationNotes(distribution.verificationNotes || '')
         setError('')
         setModal('distributionDetails')
     }
 
     const selectedFormSupply = options.supplies.find((supply) => supply._id === distributionForm.supply)
-
-    // Distributions filtered by the selected supply (for supply details modal)
-    const supplyDistributions = selectedSupply
+ const supplyDistributions = selectedSupply
         ? distributions.filter((distribution) => {
             const distSupplyId = distribution.supply?._id || distribution.supply
             return distSupplyId === selectedSupply._id
@@ -188,7 +196,6 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
 
     return (
         <main className="mx-auto max-w-7xl px-5 pb-12 pt-20 sm:px-8 lg:pt-10">
-            {/* ---------- Page header ---------- */}
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">Relief logistics</p>
@@ -216,9 +223,7 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
             {notice && <p role="status" className="mt-6 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
             {error && !modal && <p role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
 
-            {/* ---------- Main card ---------- */}
             <section className="mt-7 rounded-2xl border border-slate-200 bg-white shadow-sm">
-                {/* Tabs + search */}
                 <div className="flex flex-col justify-between gap-3 border-b border-slate-200 p-4 md:flex-row md:items-center sm:p-5">
                     <div className="inline-flex w-fit rounded-xl bg-slate-100 p-1">
                         <button type="button" onClick={() => setTab('supplies')} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${tab === 'supplies' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
@@ -235,7 +240,6 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
                     </label>
                 </div>
 
-                {/* Table body */}
                 {loading ? (
                     <p className="py-12 text-center text-sm text-slate-500">Loading relief records…</p>
                 ) : tab === 'supplies' ? (
@@ -290,8 +294,8 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
                         <table className="w-full min-w-[1150px] text-left text-sm">
                             <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                                 <tr>
-                                    {['Distribution', 'Supply / Organization', 'Destination', 'Quantity', 'Date', 'Recipient / Purpose', 'Responsible officer', 'Audit status', ''].map((heading, index) => (
-                                        <th key={heading || index} className="px-3 py-3 font-semibold">{heading}</th>
+                                    {['Distribution', 'Supply / Organization', 'Destination', 'Quantity', 'Date', 'Recipient / Purpose', 'Responsible officer', 'Audit status', 'Verified by / at', 'Verification notes'].map((heading) => (
+                                        <th key={heading} className="px-3 py-3 font-semibold">{heading}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -319,18 +323,13 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
                                         </td>
                                         <td className="px-3 py-4 text-slate-700">{distribution.responsibleOfficer?.name || '—'}</td>
                                         <td className="px-3 py-4">
-                                            <label className="sr-only" htmlFor={`audit-${distribution._id}`}>Audit status for {distribution.distributionId}</label>
-                                            <select
-                                                id={`audit-${distribution._id}`}
-                                                onClick={(event) => event.stopPropagation()}
-                                                className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-medium text-slate-700"
-                                                value={distribution.auditStatus}
-                                                onChange={(event) => changeAudit(distribution, event.target.value)}
-                                            >
-                                                {auditStatuses.map((status) => <option key={status}>{status}</option>)}
-                                            </select>
+                                            <AuditBadge status={distribution.auditStatus} />
                                         </td>
-                                        <td className="px-3 py-4 text-right text-slate-400"><ChevronRight size={16} /></td>
+                                        <td className="px-3 py-4 text-slate-700">
+                                            <p>{distribution.verifiedBy?.name || '—'}</p>
+                                            <p className="mt-1 whitespace-nowrap text-xs text-slate-500">{formatDateTime(distribution.verifiedAt)}</p>
+                                        </td>
+                                        <td className="max-w-64 px-3 py-4 text-xs text-slate-600">{distribution.verificationNotes || '—'}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -339,11 +338,9 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
                 )}
             </section>
 
-            {/* ---------- Modals ---------- */}
             {modal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal('') }}>
                     <section role="dialog" aria-modal="true" aria-labelledby="relief-modal-title" className="my-6 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-                        {/* Modal header */}
                         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 sm:px-7">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Relief logistics</p>
@@ -354,7 +351,6 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
 
                         {error && <p role="alert" className="mx-5 mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 sm:mx-7">{error}</p>}
 
-                        {/* Register supply form */}
                         {modal === 'supply' && (
                             <form onSubmit={submitSupply} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
                                 <label className="text-sm font-medium text-slate-700">Organization<select required className={fieldClass} value={supplyForm.organization} onChange={(event) => setSupplyForm({ ...supplyForm, organization: event.target.value })}><option value="">Select organization</option>{options.organizations.map((organization) => <option key={organization._id} value={organization._id}>{organization.organizationName}</option>)}</select></label>
@@ -372,7 +368,6 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
                             </form>
                         )}
 
-                        {/* Record distribution form */}
                         {modal === 'distribution' && (
                             <form onSubmit={submitDistribution} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
                                 <label className="text-sm font-medium text-slate-700 sm:col-span-2">Supply and available quantity<select required className={fieldClass} value={distributionForm.supply} onChange={(event) => setDistributionForm({ ...distributionForm, supply: event.target.value })}><option value="">Select available supply</option>{options.supplies.map((supply) => <option key={supply._id} value={supply._id}>{supply.supplyName} · {supply.organization?.organizationName} · {formatQuantity(supply.remainingQuantity)} {supply.unit} available</option>)}</select></label>
@@ -390,7 +385,6 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
                             </form>
                         )}
 
-                        {/* Supply details */}
                         {modal === 'supplyDetails' && selectedSupply && (
                             <div className="p-5 sm:p-7">
                                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -457,7 +451,6 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
                             </div>
                         )}
 
-                        {/* Distribution details */}
                         {modal === 'distributionDetails' && selectedDistribution && (
                             <div className="p-5 sm:p-7">
                                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -500,22 +493,44 @@ function ReliefSupplyManagement({ apiBase = '/dmcofficer', initialTab = 'supplie
                                             : <CircleDashed size={16} className="text-amber-600" />}
                                         <h4 className="text-sm font-semibold text-slate-900">Audit status</h4>
                                     </header>
-                                    <div className="flex flex-wrap items-center gap-3 bg-white p-4">
-                                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                            Update audit
-                                            <select
-                                                aria-label="Audit status"
-                                                className={`${fieldClass} min-w-56`}
-                                                value={selectedDistribution.auditStatus}
-                                                onChange={(event) => changeAudit(selectedDistribution, event.target.value)}
-                                            >
-                                                {auditStatuses.map((status) => <option key={status}>{status}</option>)}
-                                            </select>
-                                        </label>
-                                        <p className="text-xs text-slate-500">
-                                            Changes are saved immediately and reflected in the audit table.
-                                        </p>
+                                    <div className="grid gap-4 bg-white p-4 sm:grid-cols-2">
+                                        <Detail icon={User} label="Verified by" value={selectedDistribution.verifiedBy?.name || 'Not verified'} />
+                                        <Detail icon={CalendarDays} label="Verification timestamp" value={formatDateTime(selectedDistribution.verifiedAt)} />
+                                        <div className="sm:col-span-2"><Detail icon={Info} label="Verification notes" value={selectedDistribution.verificationNotes || 'No verification notes'} /></div>
                                     </div>
+                                    {canAudit && (
+                                        <form onSubmit={saveAudit} className="border-t border-slate-200 bg-slate-50 p-4">
+                                            <h5 className="text-sm font-semibold text-slate-900">Verify distribution</h5>
+                                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                    Audit status
+                                                    <select aria-label="Audit status" className={fieldClass} value={auditStatus} onChange={(event) => setAuditStatus(event.target.value)}>
+                                                        {auditStatuses.map((status) => <option key={status}>{status}</option>)}
+                                                    </select>
+                                                </label>
+                                                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 sm:col-span-2">
+                                                    Verification notes
+                                                    <textarea maxLength="2000" rows="3" className={fieldClass} value={verificationNotes} onChange={(event) => setVerificationNotes(event.target.value)} placeholder="Enter findings or reason for this audit status." />
+                                                </label>
+                                            </div>
+                                            <div className="mt-3 flex justify-end">
+                                                <button disabled={saving} className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save verification'}</button>
+                                            </div>
+                                        </form>
+                                    )}
+                                    {selectedDistribution.auditHistory?.length > 0 && (
+                                        <div className="border-t border-slate-200 bg-white p-4">
+                                            <h5 className="text-sm font-semibold text-slate-900">Audit history</h5>
+                                            <ol className="mt-3 space-y-3">
+                                                {[...selectedDistribution.auditHistory].reverse().map((entry, index) => (
+                                                    <li key={`${entry._id || entry.changedAt}-${index}`} className="border-l-2 border-slate-200 pl-3">
+                                                        <div className="flex flex-wrap items-center gap-2"><AuditBadge status={entry.auditStatus} /><span className="text-xs text-slate-500">{entry.changedBy?.name || 'User'} · {formatDateTime(entry.changedAt)}</span></div>
+                                                        {entry.notes && <p className="mt-1 text-sm text-slate-700">{entry.notes}</p>}
+                                                    </li>
+                                                ))}
+                                            </ol>
+                                        </div>
+                                    )}
                                 </section>
                             </div>
                         )}
@@ -612,6 +627,10 @@ function formatQuantity(value) {
 
 function formatDate(value) {
     return value ? new Date(value).toLocaleDateString() : '—'
+}
+
+function formatDateTime(value) {
+    return value ? new Date(value).toLocaleString() : '—'
 }
 
 export default ReliefSupplyManagement
