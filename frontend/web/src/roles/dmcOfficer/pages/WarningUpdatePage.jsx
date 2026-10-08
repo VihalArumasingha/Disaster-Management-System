@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Send, Users } from 'lucide-react'
 import api from '../../../services/api'
 
-const severityOptions = ['advisory', 'watch', 'warning', 'emergency']
+const severityOptions = ['Low', 'Medium', 'High', 'Critical']
 
 function WarningUpdatePage() {
     const { warningId } = useParams()
