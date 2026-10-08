@@ -59,3 +59,8 @@ export const escalateClusterToDmcOfficer = async (clusterId) => {
     )
     return response.data
 }
+
+export const getOutgoingEscalations = async (config) => {
+    const response = await api.get(`${hazardReviewPath}/escalations/recent`, config)
+    return getResponseData(response) || []
+}

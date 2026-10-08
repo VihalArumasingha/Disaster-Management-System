@@ -9,7 +9,8 @@ import {
     evaluateWarningEscalation,
     createEscalationHandoff,
     getEscalationByCluster,
-    getIncomingHazardEscalations as listIncomingHazardEscalations
+    getIncomingHazardEscalations as listIncomingHazardEscalations,
+    getOutgoingHazardEscalations as listOutgoingHazardEscalations
 } from '../services/warningEscalationService.js'
 
 export const getReviewQueue = async (
@@ -210,6 +211,23 @@ export const getClusterEscalation = async (
     }
 }
 
+export const getOutgoingEscalations = async (
+    req,
+    res,
+    next
+) => {
+    try {
+        const escalations = await listOutgoingHazardEscalations(req.user._id)
+
+        res.status(200).json({
+            success: true,
+            data: escalations
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 export const getIncomingHazardEscalations = async (
     req,
     res,
@@ -235,5 +253,6 @@ export default {
     checkEscalation,
     escalateToDmcOfficer,
     getIncomingHazardEscalations,
+    getOutgoingEscalations,
     getClusterEscalation
 }
