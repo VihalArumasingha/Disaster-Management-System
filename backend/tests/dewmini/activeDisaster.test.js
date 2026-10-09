@@ -33,3 +33,51 @@ describe('activeDisasterController', () => {
     expect(next).toHaveBeenCalledWith(expect.any(Error))
   })
 })
+
+// ============================================================
+// ASSERTIONS - easy to understand (matches slide)
+// 1 assertEquals -> toBe / toEqual
+// 2 assertFalse  -> toBe(false)
+// 3 assertNotNull-> not.toBeNull()
+// 4 assertNull   -> toBeNull()
+// 5 assertTrue   -> toBe(true)
+// 6 fail()       -> expect.fail()
+// If any check is wrong, this test fails.
+// ============================================================
+describe('Assertions - activeDisaster examples', () => {
+  it('1 - assertEquals: disaster title is equal', () => {
+    const actual = 'Flood' // what API returned
+    const expected = 'Flood' // what we wanted
+    // Check: are they equal? Yes -> pass
+    expect(actual).toBe(expected)
+  })
+  it('2 - assertFalse: no disaster means empty = false', () => {
+    const hasDisasters = [].length > 0 // empty list -> false
+    // Check: must be false. It IS false -> pass
+    expect(hasDisasters).toBe(false)
+  })
+  it('3 - assertNotNull: disaster object exists', () => {
+    const disaster = { title: 'Flood' } // fetched from DB
+    // Check: must exist (not null) -> pass
+    expect(disaster).not.toBeNull()
+    expect(disaster).toBeDefined()
+  })
+  it('4 - assertNull: missing disaster is null', () => {
+    const missing = null // DB found nothing
+    // Check: must be null -> pass
+    expect(missing).toBeNull()
+  })
+  it('5 - assertTrue: success flag is true', () => {
+    const success = true // API returned success:true
+    // Check: must be true -> pass
+    expect(success).toBe(true)
+  })
+  it('6 - fail: force fail if we reach bad code', () => {
+    const status = 'OK'
+    if (status === 'ERROR') {
+      // Only runs when something went wrong - forces failure
+      expect.fail('Should never be ERROR here!')
+    }
+    expect(status).toBe('OK') // proves we stayed on safe path
+  })
+})

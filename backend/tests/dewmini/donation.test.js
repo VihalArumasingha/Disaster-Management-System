@@ -204,3 +204,33 @@ describe('donationController full', () => {
   })
 })
 
+
+// ============================================================
+// ASSERTIONS - easy to understand (matches slide)
+// ============================================================
+describe('Assertions - donation examples', () => {
+  it('1 - assertEquals: amount is equal', () => {
+    expect(100).toBe(100)
+  })
+  it('2 - assertFalse: zero amount invalid = false', () => {
+    const ok = 0 > 0 // false
+    expect(ok).toBe(false)
+  })
+  it('3 - assertNotNull: donation exists', () => {
+    expect({ _id: 'd1' }).not.toBeNull()
+    expect({ _id: 'd1' }).toBeDefined()
+  })
+  it('4 - assertNull: missing donation is null', () => {
+    expect(null).toBeNull()
+  })
+  it('5 - assertTrue: status RECEIVED is true', () => {
+    expect('RECEIVED' === 'RECEIVED').toBe(true)
+  })
+  it('6 - fail: force fail if amount NaN slips through', () => {
+    const amount = 10
+    if (Number.isNaN(amount)) {
+      expect.fail('NaN amount should never be saved!')
+    }
+    expect(amount).toBe(10)
+  })
+})

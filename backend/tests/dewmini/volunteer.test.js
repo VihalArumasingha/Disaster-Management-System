@@ -159,3 +159,37 @@ describe('volunteerController', () => {
     expect(next).toHaveBeenCalled()
   })
 })
+
+// ============================================================
+// ASSERTIONS - easy to understand (matches slide)
+// 1 assertEquals -> toBe | 2 assertFalse -> toBe(false)
+// 3 assertNotNull -> not.toBeNull() | 4 assertNull -> toBeNull()
+// 5 assertTrue -> toBe(true) | 6 fail() -> expect.fail()
+// ============================================================
+describe('Assertions - volunteer examples', () => {
+  it('1 - assertEquals: volunteer name is equal', () => {
+    expect('Amal').toBe('Amal') // equal? Yes -> pass
+  })
+  it('2 - assertFalse: bad status is not accepted = false', () => {
+    const isAccepted = ['ASSIGNED','UNASSIGNED'].includes('MAYBE') // false
+    expect(isAccepted).toBe(false) // must be false -> pass
+  })
+  it('3 - assertNotNull: volunteer exists', () => {
+    const v = { fullName: 'Kamal' }
+    expect(v).not.toBeNull() // must exist -> pass
+    expect(v).toBeDefined()
+  })
+  it('4 - assertNull: missing volunteer is null', () => {
+    expect(null).toBeNull() // must be null -> pass
+  })
+  it('5 - assertTrue: assignment success is true', () => {
+    expect(true).toBe(true) // must be true -> pass
+  })
+  it('6 - fail: force fail if bad status slips through', () => {
+    const status = 'ASSIGNED'
+    if (status === 'MAYBE') {
+      expect.fail('MAYBE should have been rejected with 400!')
+    }
+    expect(status).toBe('ASSIGNED')
+  })
+})

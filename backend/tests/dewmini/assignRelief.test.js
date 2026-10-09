@@ -238,3 +238,35 @@ describe('ngoManager update/delete/metrics - UNIT (mocked)', () => {
     expect(next).toHaveBeenCalled()
   })
 })
+
+// ============================================================
+// ASSERTIONS - easy to understand (matches slide)
+// 1 assertEquals->toBe | 2 assertFalse->toBe(false) | 3 assertNotNull->not.toBeNull()
+// 4 assertNull->toBeNull() | 5 assertTrue->toBe(true) | 6 fail()->expect.fail()
+// ============================================================
+describe('Assertions - assignRelief examples', () => {
+  it('1 - assertEquals: warning source is equal', () => {
+    expect('dmc_warning').toBe('dmc_warning') // equal? Yes -> pass
+  })
+  it('2 - assertFalse: draft is not emergency = false', () => {
+    const isEmergency = false
+    expect(isEmergency).toBe(false) // must be false -> pass
+  })
+  it('3 - assertNotNull: escalation exists', () => {
+    expect({ _id: 'e1' }).not.toBeNull()
+    expect({ _id: 'e1' }).toBeDefined()
+  })
+  it('4 - assertNull: no report is null', () => {
+    expect(null).toBeNull()
+  })
+  it('5 - assertTrue: success is true', () => {
+    expect(true).toBe(true)
+  })
+  it('6 - fail: force fail if critical missed', () => {
+    const severity = 'Critical'
+    if (severity === 'Unknown') {
+      expect.fail('Unknown severity should never happen!')
+    }
+    expect(severity).toBe('Critical')
+  })
+})

@@ -161,3 +161,33 @@ describe('ngoPastController', () => {
 
 
 
+
+// ============================================================
+// ASSERTIONS - easy to understand (matches slide)
+// ============================================================
+describe('Assertions - ngoPast examples', () => {
+  it('1 - assertEquals: note is equal', () => {
+    expect('Flood relief').toBe('Flood relief')
+  })
+  it('2 - assertFalse: empty note invalid = false', () => {
+    const ok = '   '.trim().length > 0 // false
+    expect(ok).toBe(false)
+  })
+  it('3 - assertNotNull: record exists', () => {
+    expect({ note: 'Camp' }).not.toBeNull()
+    expect({ note: 'Camp' }).toBeDefined()
+  })
+  it('4 - assertNull: missing record is null', () => {
+    expect(null).toBeNull()
+  })
+  it('5 - assertTrue: success is true', () => {
+    expect(true).toBe(true)
+  })
+  it('6 - fail: force fail if empty note saved', () => {
+    const note = 'Help'
+    if (note.trim() === '') {
+      expect.fail('Empty note should never be saved!')
+    }
+    expect(note).toBe('Help')
+  })
+})

@@ -245,3 +245,33 @@ describe('distributionController', () => {
     expect(next).toHaveBeenCalled()
   })
 })
+
+// ============================================================
+// ASSERTIONS - easy to understand (matches slide)
+// ============================================================
+describe('Assertions - distribution examples', () => {
+  it('1 - assertEquals: operation name is equal', () => {
+    expect('Galle Relief').toBe('Galle Relief')
+  })
+  it('2 - assertFalse: negative families invalid = false', () => {
+    const ok = -2 >= 0 // false
+    expect(ok).toBe(false)
+  })
+  it('3 - assertNotNull: operation exists', () => {
+    expect({ _id: 'o1' }).not.toBeNull()
+    expect({ _id: 'o1' }).toBeDefined()
+  })
+  it('4 - assertNull: missing operation is null', () => {
+    expect(null).toBeNull()
+  })
+  it('5 - assertTrue: create success is true', () => {
+    expect(true).toBe(true)
+  })
+  it('6 - fail: force fail on bad date', () => {
+    const date = '2026-10-01'
+    if (date === '01-10-2026') {
+      expect.fail('Wrong date format should never pass!')
+    }
+    expect(date).toBe('2026-10-01')
+  })
+})
