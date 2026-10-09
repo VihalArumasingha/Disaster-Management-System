@@ -12,6 +12,7 @@ const getTextBeeApiBaseUrl = () => (
 ).replace(/\/+$/, '')
 
 const toE164Phone = (phone) => {
+    // Providers require international format, but citizen records can contain common Sri Lankan local formats.
     const digits = phone.replace(/\D/g, '')
     if (digits.startsWith('94')) return `+${digits}`
     if (digits.startsWith('0') && digits.length === 10) return `+94${digits.slice(1)}`
@@ -20,6 +21,7 @@ const toE164Phone = (phone) => {
 }
 
 const isSmsAccepted = (delivery) => (
+    // Once TextBee accepts a batch, polling/webhooks own its progress; do not submit it again.
     ['queued', 'dispatched', 'sent', 'delivered'].includes(delivery.sms?.status)
 )
 
@@ -30,6 +32,7 @@ const providerErrorMessage = (error) => (
     || 'Provider request failed'
 ).toString().slice(0, 500)
 
+// Provider errors can echo credentials, so sanitize before storing or logging their messages.
 const sanitizeProviderError = (message) => [
     process.env.TEXTBEE_API_KEY,
     process.env.BREVO_API_KEY
@@ -44,6 +47,7 @@ const sendSms = async (recipient, warning) => {
     }
 
     const phone = toE164Phone(recipient.phone)
+    // Reject invalid numbers locally rather than spending a provider request that cannot succeed.
     if (!/^\+[1-9]\d{6,14}$/.test(phone)) {
         return { success: false, error: 'Citizen phone number is not a valid international number' }
     }
@@ -65,6 +69,7 @@ const sendSms = async (recipient, warning) => {
             }
         )
         const result = response.data
+        // TextBee has returned both nested and top-level success payloads, so accept either documented shape.
         const accepted = result?.data?.success === true || result?.success === true
         if (!accepted) {
             return {
@@ -125,9 +130,11 @@ const sendEmail = async (recipient, warning) => {
 }
 
 const attemptChannel = async (delivery, channel, send) => {
+    // A previously successful channel is idempotent: retrying must not send the same alert again.
     if (delivery[channel].status === 'sent') return delivery[channel]
 
     const attemptedAt = new Date()
+    // Record the attempt before contacting the provider so its in-flight status and timestamp are durable.
     delivery = await WarningDelivery.findOneAndUpdate(
         { _id: delivery._id },
         {
@@ -140,6 +147,7 @@ const attemptChannel = async (delivery, channel, send) => {
         { new: true }
     )
     const result = await send()
+    // Keep provider-specific IDs and accepted/sent timestamps for later reconciliation and support diagnostics.
     const updates = result.success
         ? {
             [`${channel}.status`]: result.status || 'sent',
@@ -163,10 +171,12 @@ const attemptChannel = async (delivery, channel, send) => {
 }
 
 const isSent = (delivery, channel) => (
+    // For fallback decisions, "delivered" is also a completed channel outcome.
     ['sent', 'delivered'].includes(delivery[channel]?.status)
 )
 
 export const deliverWarningToCitizen = async (warning, recipient) => {
+    // Upsert one record per warning/citizen pair so retries update the same delivery instead of duplicating it.
     let delivery = await WarningDelivery.findOneAndUpdate(
         { warningId: warning._id, recipientId: recipient._id },
         {
@@ -186,6 +196,7 @@ export const deliverWarningToCitizen = async (warning, recipient) => {
             { new: true }
         )
         try {
+            // The alert is unique to this warning and citizen; upsert makes a retried worker safe.
             await AlertNotification.findOneAndUpdate(
                 { warningId: warning._id, recipientId: recipient._id },
                 {
@@ -206,6 +217,7 @@ export const deliverWarningToCitizen = async (warning, recipient) => {
                 { new: true }
             )
         } catch (error) {
+            // Keep channel failure explicit, then continue because SMS/email may still reach the citizen.
             delivery = await WarningDelivery.findOneAndUpdate(
                 { _id: delivery._id },
                 {
@@ -231,6 +243,7 @@ export const deliverWarningToCitizen = async (warning, recipient) => {
         !isSent(delivery, 'inApp')
         || delivery.sms.status === 'failed'
     ) {
+        // Email is a fallback only when the primary in-app/SMS path did not complete successfully.
         if (!isSent(delivery, 'email')) {
             delivery = await attemptChannel(delivery, 'email', () => (
                 recipient.email
@@ -239,6 +252,7 @@ export const deliverWarningToCitizen = async (warning, recipient) => {
             ))
         }
     } else if (delivery.email.status !== 'sent') {
+        // Mark email as intentionally skipped when a primary channel succeeded, not as an outstanding task.
         delivery = await WarningDelivery.findOneAndUpdate(
             { _id: delivery._id },
             { $set: { 'email.status': 'not_required' } },
@@ -250,6 +264,7 @@ export const deliverWarningToCitizen = async (warning, recipient) => {
 }
 
 export const refreshWarningDeliverySummary = async (warningId) => {
+    // Read the records together so dashboard counts and failure reasons describe one refresh operation.
     const [warning, deliveries] = await Promise.all([
         Warning.findById(warningId),
         WarningDelivery.find({ warningId })
@@ -260,6 +275,7 @@ export const refreshWarningDeliverySummary = async (warningId) => {
     deliveries.forEach((delivery) => {
         for (const channel of ['inApp', 'sms', 'email']) {
             if (delivery[channel].status !== 'failed') continue
+            // Aggregate identical failures to keep the warning summary compact while retaining actionable reasons.
             const reason = delivery[channel].error || 'Delivery failed'
             const key = `${channel}:${reason}`
             failureCounts.set(key, {
@@ -270,6 +286,7 @@ export const refreshWarningDeliverySummary = async (warningId) => {
         }
     })
     const summary = {
+        // Preserve separate accepted, dispatched, sent, and delivered counts for asynchronous SMS tracking.
         recipients: deliveries.length,
         inAppSent: deliveries.filter((delivery) => delivery.inApp.status === 'sent').length,
         smsQueued: deliveries.filter((delivery) => delivery.sms.status === 'queued').length,
@@ -298,6 +315,7 @@ export const refreshWarningDeliverySummary = async (warningId) => {
 }
 
 export const finalizeWarningDelivery = async (warningId) => {
+    // Recalculate from delivery records rather than trusting the worker's in-memory results.
     const summary = await refreshWarningDeliverySummary(warningId)
     const warning = await Warning.findById(warningId)
     if (!warning || !summary) return
@@ -309,6 +327,7 @@ export const finalizeWarningDelivery = async (warningId) => {
         || delivery.email.status === 'sent'
     ))
     if (!warning.updates.some((update) => update.type === 'issued')) {
+        // Add the issuance timeline item once, even if finalization is retried.
         warning.updates.push({
             title: 'Warning issued',
             message: warning.message,
@@ -316,6 +335,7 @@ export const finalizeWarningDelivery = async (warningId) => {
             createdAt: warning.issuedAt || new Date()
         })
     }
+    // Distinguish total failure from partial success so operators can prioritize follow-up correctly.
     warning.status = summary.failedRecipients > 0
         ? anyDelivered ? 'partially_issued' : 'delivery_failed'
         : 'issued'
@@ -324,6 +344,7 @@ export const finalizeWarningDelivery = async (warningId) => {
 }
 
 const sendSmsFailureFallback = async (delivery) => {
+    // Atomically claim the email fallback so duplicate webhook/poll events cannot send it twice.
     const emailClaim = await WarningDelivery.findOneAndUpdate(
         {
             _id: delivery._id,
@@ -340,6 +361,7 @@ const sendSmsFailureFallback = async (delivery) => {
     )
     if (!emailClaim) return
 
+    // Load the latest warning and re-check citizen eligibility before sending a fallback message.
     const [warning, recipient] = await Promise.all([
         Warning.findById(delivery.warningId),
         User.findOne({
@@ -380,6 +402,7 @@ const sendSmsFailureFallback = async (delivery) => {
 }
 
 const applyTextBeeEvent = async (payload) => {
+    // Ignore unrelated webhook kinds, but treat malformed supported events as retryable input errors.
     if (!['MESSAGE_SENT', 'MESSAGE_DELIVERED', 'MESSAGE_FAILED', 'UNKNOWN_STATE'].includes(payload.webhookEvent)) {
         return
     }
@@ -388,6 +411,7 @@ const applyTextBeeEvent = async (payload) => {
     }
 
     const matchingDelivery = await WarningDelivery.findOne({
+        // Providers may identify the same SMS using either its batch ID or message ID.
         $or: [
             { 'sms.providerBatchId': payload.smsBatchId },
             { 'sms.providerMessageId': payload.smsBatchId }
@@ -397,6 +421,7 @@ const applyTextBeeEvent = async (payload) => {
         throw new Error('No warning delivery matches the TextBee batch event yet')
     }
 
+    // Webhooks may arrive out of order; later events must not downgrade a terminal delivery result.
     const currentStatus = matchingDelivery.sms.status
     let update
     if (payload.webhookEvent === 'MESSAGE_SENT') {
@@ -437,12 +462,15 @@ const applyTextBeeEvent = async (payload) => {
         { new: true }
     )
     if (payload.webhookEvent === 'MESSAGE_FAILED') {
+        // A failed SMS is the point at which email fallback becomes necessary.
         await sendSmsFailureFallback(updatedDelivery)
     }
+    // Keep the warning-level summary synchronized with each accepted provider event.
     await refreshWarningDeliverySummary(updatedDelivery.warningId)
 }
 
 export const processTextBeeWebhookEvent = async (eventId) => {
+    // Claim only due pending events; the conditional update prevents two workers processing the same event.
     const event = await TextBeeWebhookEvent.findOneAndUpdate(
         {
             _id: eventId,
@@ -470,6 +498,7 @@ export const processTextBeeWebhookEvent = async (eventId) => {
             }
         )
     } catch (error) {
+        // Exponential backoff avoids hammering on transient failures; the cap keeps retries operationally bounded.
         const delaySeconds = Math.min(300, 5 * (2 ** Math.min(event.attempts, 6)))
         await TextBeeWebhookEvent.updateOne(
             { _id: event._id, status: 'processing' },
@@ -485,6 +514,7 @@ export const processTextBeeWebhookEvent = async (eventId) => {
 }
 
 export const enqueueTextBeeWebhookEvent = async (payload) => {
+    // Persist only recognized provider fields so arbitrary webhook properties are not stored or trusted downstream.
     const eventPayload = {
         idempotencyKey: payload.idempotencyKey,
         webhookEvent: payload.webhookEvent,
@@ -502,6 +532,7 @@ export const enqueueTextBeeWebhookEvent = async (payload) => {
         })
     } catch (error) {
         if (error.code === 11000) {
+            // Duplicate idempotency keys represent a retry; return its original event rather than enqueueing twice.
             return TextBeeWebhookEvent.findOne({ idempotencyKey: payload.idempotencyKey })
         }
         throw error
@@ -509,6 +540,7 @@ export const enqueueTextBeeWebhookEvent = async (payload) => {
 }
 
 export const processPendingTextBeeWebhookEvents = async () => {
+    // Requeue work abandoned by a crashed worker, then process a bounded batch to limit each poll's load.
     const staleProcessingBefore = new Date(Date.now() - 2 * 60 * 1000)
     await TextBeeWebhookEvent.updateMany(
         { status: 'processing', updatedAt: { $lt: staleProcessingBefore } },
@@ -525,6 +557,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
     if (!process.env.TEXTBEE_API_KEY) return
 
     const pollBefore = new Date(Date.now() - 10000)
+    // Only check accepted, non-terminal batches whose last poll is old enough to avoid excessive provider traffic.
     const deliveries = await WarningDelivery.find({
         'sms.status': { $in: ['queued', 'dispatched', 'unknown'] },
         'sms.providerBatchId': { $ne: '' },
@@ -537,6 +570,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
         .limit(20)
 
     await Promise.all(deliveries.map(async (delivery) => {
+        // The conditional update acts as a short polling lease when multiple app instances share the queue.
         const pollingClaim = await WarningDelivery.findOneAndUpdate(
             {
                 _id: delivery._id,
@@ -573,6 +607,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
                 }
             )
             const messageData = response.data?.data
+            // TextBee deployments return history as either a direct array or an object containing messages.
             const messages = Array.isArray(messageData)
                 ? messageData
                 : Array.isArray(messageData?.messages)
@@ -586,6 +621,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
                     === delivery.sms.providerBatchId
             ))
             if (!message) {
+                // No matching history is not proof of failure; leave the batch unchanged for a later poll.
                 if (!delivery.sms.lastPolledAt) {
                     console.warn('TextBee status lookup returned no matching message; leaving SMS queued')
                 }
@@ -602,6 +638,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
             if (['delivered', 'failed'].includes(delivery.sms.status)) return
             if (delivery.sms.status === messageStatus) return
 
+            // Map the provider response into the application's status vocabulary and timestamps.
             let updates
             if (messageStatus === 'sent') {
                 updates = {
@@ -644,6 +681,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
                 { $set: updates },
                 { new: true }
             )
+            // The conditional claim ensures a late polling response cannot overwrite a concurrent webhook result.
             if (!updatedDelivery) return
             console.info(`TextBee SMS status updated: ${delivery.sms.status} -> ${messageStatus}`)
             if (messageStatus === 'failed') {
@@ -651,6 +689,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
             }
             await refreshWarningDeliverySummary(updatedDelivery.warningId)
         } catch (error) {
+            // A single provider failure should not prevent the remaining queued deliveries from being checked.
             console.error(`TextBee status check failed for delivery ${delivery._id}: ${sanitizeProviderError(error.message)}`)
         }
     }))
@@ -658,6 +697,7 @@ export const pollQueuedTextBeeDeliveries = async () => {
 
 export const verifyTextBeeWebhookSignature = (rawBody, signature) => {
     const signingSecret = process.env.TEXTBEE_WEBHOOK_SECRET
+    // Reject missing configuration or malformed inputs before computing a signature.
     if (!signingSecret || typeof signature !== 'string' || !Buffer.isBuffer(rawBody)) {
         return false
     }
@@ -667,5 +707,6 @@ export const verifyTextBeeWebhookSignature = (rawBody, signature) => {
         .digest('hex')
     const provided = Buffer.from(signature, 'utf8')
     const expected = Buffer.from(expectedSignature, 'utf8')
+    // Use constant-time comparison so response duration does not reveal signature-prefix matches.
     return provided.length === expected.length && crypto.timingSafeEqual(provided, expected)
 }

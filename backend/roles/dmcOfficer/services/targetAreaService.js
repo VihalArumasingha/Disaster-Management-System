@@ -17,8 +17,10 @@ const ALLOWED_HAZARDS = new Set([
     'storm',
     'other'
 ])
+// Segment-intersection validation is quadratic, so cap input size to keep requests bounded.
 const MAX_POLYGON_VERTICES = 500
 
+// A point is on a segment only when it is collinear and also lies within both coordinate bounds.
 const pointOnSegment = ([x, y], [x1, y1], [x2, y2]) => (
     Math.abs((x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)) < 1e-10
     && x >= Math.min(x1, x2)
@@ -27,6 +29,7 @@ const pointOnSegment = ([x, y], [x1, y1], [x2, y2]) => (
     && y <= Math.max(y1, y2)
 )
 
+// The signed turn direction is used to detect when two segments cross each other.
 const orientation = ([x1, y1], [x2, y2], [x3, y3]) => (
     (y2 - y1) * (x3 - x2) - (x2 - x1) * (y3 - y2)
 )
@@ -37,6 +40,7 @@ const segmentsIntersect = (firstStart, firstEnd, secondStart, secondEnd) => {
     const thirdOrientation = orientation(secondStart, secondEnd, firstStart)
     const fourthOrientation = orientation(secondStart, secondEnd, firstEnd)
 
+    // Opposite turns on both segments indicate a proper crossing; the fallback covers touching/overlapping edges.
     if (
         firstOrientation * secondOrientation < 0
         && thirdOrientation * fourthOrientation < 0
@@ -53,6 +57,7 @@ const segmentsIntersect = (firstStart, firstEnd, secondStart, secondEnd) => {
 }
 
 export const validatePolygonGeometry = (geometry) => {
+    // This service supports one exterior ring; holes and multi-ring polygons are not part of the target-area contract.
     if (
         !geometry
         || geometry.type !== 'Polygon'
@@ -83,6 +88,7 @@ export const validatePolygonGeometry = (geometry) => {
     ))
     if (!validCoordinates) return false
 
+    // GeoJSON linear rings must repeat their starting position as their final position.
     const first = ring[0]
     const last = ring[ring.length - 1]
     if (first[0] !== last[0] || first[1] !== last[1]) return false
@@ -91,6 +97,7 @@ export const validatePolygonGeometry = (geometry) => {
     const distinctVertices = new Set(
         openRing.map(([longitude, latitude]) => `${longitude},${latitude}`)
     )
+    // Ignore the closing coordinate here; a useful polygon still needs three unique corners and no zero-length edges.
     if (distinctVertices.size < 3) return false
     if (openRing.some((point, index) => (
         index > 0
@@ -100,6 +107,7 @@ export const validatePolygonGeometry = (geometry) => {
         return false
     }
 
+    // The shoelace sum rejects collinear rings whose vertices do not enclose any area.
     const twiceArea = openRing.reduce((area, [longitude, latitude], index) => {
         const next = openRing[(index + 1) % openRing.length]
         return area + longitude * next[1] - next[0] * latitude
@@ -109,6 +117,7 @@ export const validatePolygonGeometry = (geometry) => {
     const segmentCount = ring.length - 1
     for (let firstIndex = 0; firstIndex < segmentCount; firstIndex += 1) {
         for (let secondIndex = firstIndex + 1; secondIndex < segmentCount; secondIndex += 1) {
+            // Adjacent edges share a vertex by design; only non-adjacent crossings invalidate the ring.
             const adjacent = secondIndex === firstIndex + 1
                 || (firstIndex === 0 && secondIndex === segmentCount - 1)
             if (adjacent) continue
@@ -130,6 +139,7 @@ export const validatePolygonGeometry = (geometry) => {
 }
 
 const validateTargetArea = ({ name, areaType, hazardTypes, geometry }) => {
+    // Validate every field before running spatial queries or writing anything to MongoDB.
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
         const error = new Error('Area name is required and must be 120 characters or fewer')
         error.statusCode = 400
@@ -167,6 +177,7 @@ const citizenQueryForGeometry = (geometry) => ({
 const getCurrentCitizenIds = async (citizenIds) => {
     if (citizenIds.length === 0) return []
 
+    // Membership can become stale when a user changes roles, so only count current citizens.
     return User.find({
         _id: { $in: citizenIds },
         role: { $in: CITIZEN_ROLE_VALUES }
@@ -177,6 +188,7 @@ const shapeTargetArea = async (area) => {
     const { citizenIds, ...publicArea } = area.toObject()
     return {
         ...publicArea,
+        // Return a count rather than the underlying citizen IDs to keep membership data private.
         citizenCount: (await getCurrentCitizenIds(citizenIds)).length
     }
 }
@@ -188,6 +200,7 @@ export const previewTargetArea = async (geometry) => {
         throw error
     }
 
+    // Preview uses the same spatial query as creation without persisting a target area.
     return {
         citizenCount: await User.countDocuments(citizenQueryForGeometry(geometry))
     }
@@ -201,6 +214,7 @@ export const createTargetArea = async (data, officerId) => {
     const area = await TargetArea.create({
         name: data.name.trim(),
         areaType: data.areaType,
+        // Normalize user-entered fields and deduplicate hazards before persistence.
         hazardTypes: [...new Set(data.hazardTypes)],
         description: typeof data.description === 'string'
             ? data.description.trim().slice(0, 2000)
@@ -217,6 +231,7 @@ export const createTargetArea = async (data, officerId) => {
 }
 
 export const listTargetAreas = async () => {
+    // Newest areas appear first; citizen counts are refreshed when each record is shaped for the response.
     const areas = await TargetArea.find()
         .populate('createdBy', 'name')
         .sort({ createdAt: -1 })
