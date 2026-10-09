@@ -34,8 +34,10 @@ export default function DisasterForm() {
         api.get(`/ngomanager/disasters/${disasterId}`)
             .then(({ data }) => {
                 if (!active) return
-                if (data.warning.status !== 'draft') {
-                    setError('Only draft disasters can be edited.')
+                // Draft-only lock removed: DB-saved active (issued)
+                // disasters must be editable; only resolved ones lock.
+                if (data.warning.resolvedAt || data.warning.status === 'resolved') {
+                    setError('Resolved disasters can no longer be edited.')
                     return
                 }
                 setForm({

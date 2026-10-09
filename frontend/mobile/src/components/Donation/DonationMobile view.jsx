@@ -129,6 +129,108 @@ const disasterImageUrl = (image, apiBase) => {
   return /^https?:\/\//i.test(url) ? url : `${apiBase}/${String(url).replace(/\\/g, '')}`
 }
 
+// Auto-rotating cover gallery: if a disaster has >1 image, cycle every 3s
+function DisasterCard({ disaster, onSupport, onFindCenter }) {
+  const urls = (disaster.images || [])
+    .map((img) => disasterImageUrl(img, API_BASE))
+    .filter(Boolean)
+  const [idx, setIdx] = useState(0)
+
+  // reset when switching disaster / images change
+  useEffect(() => {
+    setIdx(0)
+  }, [disaster._id])
+
+  useEffect(() => {
+    if (urls.length < 2) return
+    const t = setInterval(() => setIdx((i) => (i + 1) % urls.length), 3000)
+    return () => clearInterval(t)
+  }, [urls.length, disaster._id])
+
+  const coverImage = urls[idx] || null
+
+  return (
+    <article className="w-60 shrink-0 snap-start overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="relative h-28 bg-slate-200">
+        {coverImage ? (
+          <img
+            key={coverImage}
+            src={coverImage}
+            alt={disaster.title}
+            className="h-full w-full object-cover"
+            style={{ animation: 'cardFade 0.6s ease' }}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-300">
+            <AlertTriangle size={26} className="text-slate-500" />
+          </div>
+        )}
+        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white">
+          <MapPin size={12} className="text-red-400" />
+          {disaster.city}
+        </span>
+        <span
+          className={`absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+            SEVERITY_STYLES[disaster.severity] || 'bg-slate-100 text-slate-700'
+          }`}
+        >
+          {disaster.severity}
+        </span>
+        {/* dots — only when more than one picture */}
+        {urls.length > 1 && (
+          <div className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 gap-1">
+            {urls.map((u, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`Photo ${i + 1}`}
+                onClick={() => setIdx(i)}
+                className={`h-1.5 rounded-full transition-all ${
+                  i === idx ? 'w-4 bg-white' : 'w-1.5 bg-white/60 hover:bg-white/90'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        <h3 className="text-sm font-bold text-slate-900">{disaster.title}</h3>
+        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{disaster.summary}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {disaster.parsedNeeds.slice(0, 3).map(({ key, label }) => (
+            <span
+              key={key}
+              className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+            >
+              {label}
+            </span>
+          ))}
+          {disaster.parsedNeeds.length > 3 && (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+              +{disaster.parsedNeeds.length - 3} more
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onSupport}
+          className="mt-3 w-full rounded-xl bg-green-600 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-green-700 active:scale-[0.98]"
+        >
+          Support this cause
+        </button>
+        <button
+          type="button"
+          onClick={onFindCenter}
+          className="mt-2 flex w-full items-center justify-center gap-1 rounded-xl border border-teal-200 bg-teal-50 py-1.5 text-xs font-bold text-teal-700 transition hover:bg-teal-100 active:scale-[0.98]"
+        >
+          <MapPin size={13} />
+          Find center
+        </button>
+      </div>
+    </article>
+  )
+}
+
 export default function DonationMobileView() {
   const navigate = useNavigate()
   const [inventoryData, setInventoryData] = useState([])
@@ -491,84 +593,24 @@ export default function DonationMobileView() {
           </div>
         ) : (
           <div className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-3">
-            {activeDisasters.map((disaster) => {
-              const coverImage = disasterImageUrl(disaster.images?.[0], API_BASE)
-              return (
-                <article
-                  key={disaster._id}
-                  className="w-60 shrink-0 snap-start overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-                >
-                  <div className="relative h-28 bg-slate-200">
-                    {coverImage ? (
-                      <img
-                        src={coverImage}
-                        alt={disaster.title}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-300">
-                        <AlertTriangle size={26} className="text-slate-500" />
-                      </div>
-                    )}
-                    <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white">
-                      <MapPin size={12} className="text-red-400" />
-                      {disaster.city}
-                    </span>
-                    <span
-                      className={`absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        SEVERITY_STYLES[disaster.severity] || 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {disaster.severity}
-                    </span>
-                  </div>
-                  <div className="p-3">
-                    <h3 className="text-sm font-bold text-slate-900">{disaster.title}</h3>
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">{disaster.summary}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {disaster.parsedNeeds.slice(0, 3).map(({ key, label }) => (
-                        <span
-                          key={key}
-                          className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
-                        >
-                          {label}
-                        </span>
-                      ))}
-                      {disaster.parsedNeeds.length > 3 && (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                          +{disaster.parsedNeeds.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate('/donation/fundraise', {
-                          state: {
-                            cause: {
-                              id: disaster._id,
-                              title: disaster.title,
-                              area: disaster.city
-                            }
-                          }
-                        })
+            {activeDisasters.map((disaster) => (
+              <DisasterCard
+                key={disaster._id}
+                disaster={disaster}
+                onSupport={() =>
+                  navigate('/donation/fundraise', {
+                    state: {
+                      cause: {
+                        id: disaster._id,
+                        title: disaster.title,
+                        area: disaster.city
                       }
-                      className="mt-3 w-full rounded-xl bg-green-600 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-green-700 active:scale-[0.98]"
-                    >
-                      Support this cause
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openCentersForCity(disaster.city)}
-                      className="mt-2 flex w-full items-center justify-center gap-1 rounded-xl border border-teal-200 bg-teal-50 py-1.5 text-xs font-bold text-teal-700 transition hover:bg-teal-100 active:scale-[0.98]"
-                    >
-                      <MapPin size={13} />
-                      Find center
-                    </button>
-                  </div>
-                </article>
-              )
-            })}
+                    }
+                  })
+                }
+                onFindCenter={() => openCentersForCity(disaster.city)}
+              />
+            ))}
           </div>
         )}
       </section>

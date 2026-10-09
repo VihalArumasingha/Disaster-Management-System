@@ -128,6 +128,13 @@ export const getDisasters = async (req, res, next) => {
         }
 
         console.log('Fetching disasters with filter:', filter)
+        // NGO "Active Disasters" page shows EVERY unresolved DB record
+        // (drafts included — NGO-created records start as drafts).
+        // Only resolved ones (resolvedAt set) are hidden. An explicit
+        // ?status= still narrows (filter dropdown / tests).
+        if (!status) {
+            filter.resolvedAt = null
+        }
         const warnings = await Warning.find(filter)
             .populate('targetAreaIds', 'name geometry')
             .populate('createdBy', 'name email')
@@ -268,11 +275,13 @@ export const updateDisaster = async (req, res, next) => {
             })
         }
 
-        // Only allow editing draft warnings
-        if (warning.status !== 'draft') {
+        // Saved (issued/active) disasters are editable. Only resolved
+        // disasters are locked — the old draft-only rule blocked every
+        // DB-saved active disaster from being edited.
+        if (warning.resolvedAt || warning.status === 'resolved') {
             return res.status(400).json({
                 success: false,
-                message: 'Only draft disasters can be edited'
+                message: 'Resolved disasters can no longer be edited'
             })
         }
 
