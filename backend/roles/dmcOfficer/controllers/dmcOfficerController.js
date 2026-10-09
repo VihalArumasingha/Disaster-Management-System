@@ -2,6 +2,7 @@ import axios from 'axios'
 import { normalizeRole } from '../../../utils/constants.js'
 import { getOverview } from '../services/warningManagementService.js'
 
+// Preserve legacy imports while routes can use the narrower feature-specific controllers.
 export {
     addWarningUpdate,
     editWarning,
@@ -20,6 +21,7 @@ export {
 
 export const overview = async (req, res, next) => {
     try {
+        // Keep the dashboard endpoint as a thin adapter so all count queries remain in the service layer.
         res.json({ success: true, overview: await getOverview() })
     } catch (error) {
         next(error)
@@ -33,6 +35,7 @@ export const openWeatherTile = async (req, res, next) => {
     const tileY = Number(y)
     const tileCount = 2 ** zoom
 
+    // Reject unsupported layers and out-of-range coordinates before making an upstream request.
     if (
         !['precipitation_new', 'clouds_new', 'temp_new'].includes(layer)
         || !Number.isInteger(zoom)
@@ -59,6 +62,7 @@ export const openWeatherTile = async (req, res, next) => {
     }
 
     try {
+        // Stream the provider's binary tile through this endpoint so the API key remains server-side.
         const response = await axios.get(
             `https://tile.openweathermap.org/map/${layer}/${zoom}/${tileX}/${tileY}.png`,
             {
@@ -72,6 +76,7 @@ export const openWeatherTile = async (req, res, next) => {
         res.status(200).send(response.data)
     } catch (error) {
         if (error.response) {
+            // Translate provider errors into a stable public response without exposing upstream details.
             return res.status(error.response.status === 401 ? 502 : 503).json({
                 success: false,
                 message: 'OpenWeather map tiles are currently unavailable'
@@ -82,6 +87,7 @@ export const openWeatherTile = async (req, res, next) => {
 }
 
 export const profile = (req, res) => {
+    // Return an explicit profile shape rather than serializing the authenticated user document.
     res.json({
         success: true,
         profile: {
