@@ -13,7 +13,16 @@ const createAuthError = (message, statusCode) => {
     return error
 }
 
-export const registerUser = async ({ name, email, password, phone, location }) => {
+export const registerUser = async ({
+    name,
+    email,
+    password,
+    phone,
+    location,
+    nationalId,
+    homeAddress,
+    district
+}) => {
     const normalizedEmail = email.trim().toLowerCase()
     const existingUser = await User.findOne({ email: normalizedEmail })
 
@@ -38,6 +47,9 @@ export const registerUser = async ({ name, email, password, phone, location }) =
             email: normalizedEmail,
             password: hashedPassword,
             phone: phone.trim(),
+            nationalId,
+            homeAddress,
+            district,
             ...(point ? { location: point } : {}),
             role: USER_ROLES.citizen
         })

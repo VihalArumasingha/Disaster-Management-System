@@ -3,12 +3,48 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks'
 import { USER_ROLES } from '../../constants/roles'
 
+const SRI_LANKAN_DISTRICTS = [
+    'Ampara',
+    'Anuradhapura',
+    'Badulla',
+    'Batticaloa',
+    'Colombo',
+    'Galle',
+    'Gampaha',
+    'Hambantota',
+    'Jaffna',
+    'Kalutara',
+    'Kandy',
+    'Kegalle',
+    'Kilinochchi',
+    'Kurunegala',
+    'Mannar',
+    'Matale',
+    'Matara',
+    'Monaragala',
+    'Mullaitivu',
+    'Nuwara Eliya',
+    'Polonnaruwa',
+    'Puttalam',
+    'Ratnapura',
+    'Trincomalee',
+    'Vavuniya'
+]
+
 function AuthPage({ mode }) {
     const isRegister = mode === 'register'
     const { user, loading, loadError, login, register } = useAuth()
     const location = useLocation()
     const navigate = useNavigate()
-    const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' })
+    const [form, setForm] = useState({
+        name: '',
+        email: '',
+        password: '',
+        phone: '',
+        nationalId: '',
+        homeAddress: '',
+        district: ''
+    })
     const [citizenLocation, setCitizenLocation] = useState(null)
     const [locationMessage, setLocationMessage] = useState('')
     const [locating, setLocating] = useState(false)
@@ -153,6 +189,45 @@ function AuthPage({ mode }) {
                                     onChange={(event) => setForm({ ...form, phone: event.target.value })}
                                     className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                                 />
+                            </label>
+                        )}
+                        {isRegister && (
+                            <label className="block text-sm font-medium text-gray-700">
+                                National ID <span className="font-normal text-gray-500">(optional)</span>
+                                <input
+                                    autoComplete="off"
+                                    value={form.nationalId}
+                                    onChange={(event) => setForm({ ...form, nationalId: event.target.value })}
+                                    className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                />
+                            </label>
+                        )}
+                        {isRegister && (
+                            <label className="block text-sm font-medium text-gray-700">
+                                Home address <span className="font-normal text-gray-500">(optional)</span>
+                                <textarea
+                                    autoComplete="street-address"
+                                    rows={2}
+                                    value={form.homeAddress}
+                                    onChange={(event) => setForm({ ...form, homeAddress: event.target.value })}
+                                    className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                />
+                            </label>
+                        )}
+                        {isRegister && (
+                            <label className="block text-sm font-medium text-gray-700">
+                                District <span className="font-normal text-gray-500">(optional)</span>
+                                <select
+                                    autoComplete="address-level2"
+                                    value={form.district}
+                                    onChange={(event) => setForm({ ...form, district: event.target.value })}
+                                    className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                >
+                                    <option value="">Select a district</option>
+                                    {SRI_LANKAN_DISTRICTS.map((district) => (
+                                        <option key={district} value={district}>{district}</option>
+                                    ))}
+                                </select>
                             </label>
                         )}
                         <label className="block text-sm font-medium text-gray-700">

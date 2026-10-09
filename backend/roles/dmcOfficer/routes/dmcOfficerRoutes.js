@@ -9,20 +9,24 @@ import reliefManagementRoutes from './reliefManagementRoutes.js'
 import resourceManagementRoutes from './resourceManagementRoutes.js'
 import { getIncomingHazardEscalations } from '../controllers/hazardReviewController.js'
 import {
-    openWeatherTile,
+    saveTargetArea,
+    targetAreaPreview,
+    targetAreas
+} from '../controllers/targetAreaController.js'
+import {
     addWarningUpdate,
     editWarning,
     issueWarningNow,
-    overview,
-    profile,
     reviewWarning,
     resolveWarningNow,
-    saveTargetArea,
     saveWarning,
-    targetAreaPreview,
-    targetAreas,
     warningRecipientPreview,
     warnings
+} from '../controllers/warningController.js'
+import {
+    openWeatherTile,
+    overview,
+    profile
 } from '../controllers/dmcOfficerController.js'
 
 const router = express.Router()
