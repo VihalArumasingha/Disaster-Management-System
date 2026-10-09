@@ -55,7 +55,20 @@ export default function ApprovedCard({ item, assigned, onAssign, teamMini }) {
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t bg-slate-50 px-6 py-4">
         <span className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-1.5 text-xs font-bold text-emerald-700">APPROVED</span>
-        {assigned ? <span className="text-xs font-semibold text-emerald-700">DEPLOYED — {assigned.team} • {assigned.teamName}</span> : <button type="button" onClick={() => onAssign(item)} className="rounded-xl border-2 border-blue-500 px-5 py-1.5 text-sm font-bold">Assign</button>}
+        {assigned ? (
+          <>
+            <span className="text-xs font-semibold text-emerald-700">DEPLOYED — {assigned.team} • {assigned.teamName}</span>
+            {assigned.status !== 'Completed' && (
+              <button
+                type="button"
+                onClick={() => onAssign && onAssign(item, true)}
+                className="rounded-xl bg-emerald-600 px-4 py-1.5 text-sm font-bold text-white hover:bg-emerald-700"
+              >
+                ✅ Mark as Completed
+              </button>
+            )}
+          </>
+        ) : <button type="button" onClick={() => onAssign(item)} className="rounded-xl border-2 border-blue-500 px-5 py-1.5 text-sm font-bold">Assign</button>}
       </div>
     </article>
   )

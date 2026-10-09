@@ -73,6 +73,18 @@ export default function DeployBox({ counts, team, setTeam, cur, setSt }) {
                 <dt className="font-semibold text-slate-500">Updated</dt><dd className="text-slate-700">{fd(d.updatedAt)}</dd>
                 <dt className="font-semibold text-slate-500">Status</dt>
                 <dd className="flex flex-wrap gap-2">{['Pending', 'In Progress', 'Completed'].map((s) => <button key={s} type="button" onClick={() => setSt(d.id, s)} className={'rounded-lg px-4 py-1.5 text-[13px] font-bold text-white shadow-sm transition ' + (d.status === s ? 'bg-blue-700 ring-2 ring-blue-300' : 'bg-blue-600 hover:bg-blue-700')}>{s}</button>)}</dd>
+                <dt className="font-semibold text-slate-500">Actions</dt>
+                <dd className="flex flex-wrap gap-2">
+                  {d.status !== 'Completed' && (
+                    <button
+                      type="button"
+                      onClick={() => setSt(d.id, 'Completed')}
+                      className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+                    >
+                      ✅ Mark as Completed
+                    </button>
+                  )}
+                </dd>
                 <dt className="font-semibold text-slate-500">Location</dt>
                 <dd><button type="button" onClick={() => { if (d.lat != null) window.open(`https://www.google.com/maps?q=${d.lat},${d.lng}`, '_blank'); else alert('No GPS coordinates for this deployment.') }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700">📍 Share Live Location</button></dd>
               </dl>
