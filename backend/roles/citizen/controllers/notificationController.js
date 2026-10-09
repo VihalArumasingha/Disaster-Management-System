@@ -1,13 +1,23 @@
 import AlertNotification from '../../../models/AlertNotification.js'
+import ReliefNotification from '../../../models/ReliefNotification.js'
 import Warning from '../../../models/Warning.js'
 import { getNearbyFacilities, getNearbyHazards } from '../services/nearbyHazardService.js'
 
 export const listNotifications = async (req, res, next) => {
     try {
-        const notifications = await AlertNotification.find({ recipientId: req.user._id })
-            .sort({ createdAt: -1 })
-            .limit(100)
-            .lean()
+        const [warnings, relief] = await Promise.all([
+            AlertNotification.find({ recipientId: req.user._id })
+                .sort({ createdAt: -1 })
+                .limit(100)
+                .lean(),
+            ReliefNotification.find({ recipientId: req.user._id })
+                .sort({ createdAt: -1 })
+                .limit(100)
+                .lean()
+        ])
+        const notifications = [...warnings, ...relief]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 100)
         res.json({ success: true, notifications })
     } catch (error) {
         next(error)
@@ -99,11 +109,18 @@ export const getWarningDetail = async (req, res, next) => {
 
 export const markNotificationRead = async (req, res, next) => {
     try {
-        const notification = await AlertNotification.findOneAndUpdate(
+        let notification = await AlertNotification.findOneAndUpdate(
             { _id: req.params.notificationId, recipientId: req.user._id },
             { $set: { readAt: new Date() } },
             { new: true }
         )
+        if (!notification) {
+            notification = await ReliefNotification.findOneAndUpdate(
+                { _id: req.params.notificationId, recipientId: req.user._id },
+                { $set: { readAt: new Date() } },
+                { new: true }
+            )
+        }
         if (!notification) {
             return res.status(404).json({
                 success: false,

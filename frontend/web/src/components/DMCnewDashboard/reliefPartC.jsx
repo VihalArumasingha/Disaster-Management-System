@@ -31,26 +31,28 @@ export default function DeployBox({ counts, team, setTeam, cur, setSt }) {
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         {TEAMS.map((t) => {
           const s = t === 'Fire Brigade' ? counts.Fire : counts[t]
+          const sel = team === t
           const ring = s.total === 0 ? '#eef2f7' : `conic-gradient(#fb923c 0 ${(s.pending / s.total) * 100}%, #3b82f6 0 ${((s.pending + s.prog) / s.total) * 100}%, #34d399 0 100%)`
+          const go = () => { setTeam(t); setTimeout(() => document.getElementById('deploy-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }
           return (
-            <div key={t} className="rounded-2xl border bg-white p-5 shadow-sm">
-              <p className="text-center text-sm font-bold">{t}</p>
+            <button key={t} type="button" onClick={go} title={'Show ' + t + ' deployments below'} className={'rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-pointer ' + (sel ? 'ring-2 ring-blue-600 ring-offset-2' : '')}>
+              <p className={'text-center text-sm font-bold ' + (sel ? 'text-blue-700' : '')}>{t}{sel ? ' ✓' : ''}</p>
               <div className="relative mx-auto mt-3 h-32 w-32">
                 <div className="h-full w-full rounded-full p-2" style={{ background: ring }}>
                   <div className="grid h-full w-full place-items-center rounded-full bg-white"><span className="text-2xl font-extrabold">{s.total}</span></div>
                 </div>
               </div>
-              <div className="mt-4 space-y-2 border-t pt-3 text-sm">
+              <div className="mt-4 space-y-2 border-t pt-3 text-left text-sm">
                 <div className="flex justify-between"><span>Pending</span><b>{s.pending}</b></div>
                 <div className="flex justify-between"><span>In Progress</span><b>{s.prog}</b></div>
                 <div className="flex justify-between"><span>Completed</span><b>{s.done}</b></div>
               </div>
-            </div>
+            </button>
           )
         })}
       </div>
-      <div className="mt-6 grid max-w-xs gap-2">
-        {TEAMS.map((t) => <button key={t} type="button" onClick={() => setTeam(t)} className={'rounded-xl border bg-white px-4 py-2.5 text-left ' + (team === t ? 'border-blue-600 text-blue-600' : '')}>{t}</button>)}
+      <div id="deploy-list" className="mt-6 grid max-w-xs scroll-mt-4 gap-2">
+        {TEAMS.map((t) => <button key={t} type="button" onClick={() => { setTeam(t); setShowDone(false) }} className={'rounded-xl border bg-white px-4 py-2.5 text-left ' + (team === t && !showDone ? 'border-blue-600 font-bold text-blue-600 ring-1 ring-blue-600' : '')}>{t}{team === t && !showDone ? ' ✓' : ''}</button>)}
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-extrabold">{team} Deployments {showDone ? '(Completed)' : '(Active)'}</h2>
