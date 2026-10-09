@@ -194,3 +194,34 @@ describe('inventoryController part1', () => {
     expect(next).toHaveBeenCalled()
   })
 })
+
+// ============================================================
+// ASSERTIONS - easy to understand (matches slide)
+// ============================================================
+describe('Assertions - inventory examples', () => {
+  it('1 - assertEquals: quantity is equal', () => {
+    expect(10).toBe(10) // equal? Yes -> pass
+  })
+  it('2 - assertFalse: zero quantity is invalid = false', () => {
+    const isValidQty = 0 > 0 // false
+    expect(isValidQty).toBe(false) // must be false -> pass
+  })
+  it('3 - assertNotNull: item exists', () => {
+    const item = { item: 'water', quantity: 50 }
+    expect(item).not.toBeNull()
+    expect(item).toBeDefined()
+  })
+  it('4 - assertNull: missing item is null', () => {
+    expect(null).toBeNull()
+  })
+  it('5 - assertTrue: add success is true', () => {
+    expect(true).toBe(true)
+  })
+  it('6 - fail: force fail if gold slips through', () => {
+    const item = 'water'
+    if (item === 'gold') {
+      expect.fail('gold is not an allowed inventory item!')
+    }
+    expect(item).toBe('water')
+  })
+})

@@ -81,3 +81,45 @@ describe('collectingCenterController', () => {
     expect(next).toHaveBeenCalled()
   })
 })
+
+// ============================================================
+// ASSERTIONS - easy to understand (matches slide)
+// 1 assertEquals -> toBe / toEqual | 2 assertFalse -> toBe(false)
+// 3 assertNotNull-> not.toBeNull() | 4 assertNull -> toBeNull()
+// 5 assertTrue -> toBe(true) | 6 fail() -> expect.fail()
+// ============================================================
+describe('Assertions - collectingCenter examples', () => {
+  it('1 - assertEquals: center name is equal', () => {
+    const actual = 'Galle Hub'
+    // Check: equal? Yes -> pass
+    expect(actual).toBe('Galle Hub')
+  })
+  it('2 - assertFalse: empty name is invalid = false', () => {
+    const isValid = ''.length > 0 // empty -> false
+    // Check: must be false -> pass
+    expect(isValid).toBe(false)
+  })
+  it('3 - assertNotNull: created center exists', () => {
+    const center = { _id: 'n1', name: 'Hub' }
+    // Check: must exist -> pass
+    expect(center).not.toBeNull()
+    expect(center).toBeDefined()
+  })
+  it('4 - assertNull: deleted center is null', () => {
+    const deleted = null // findByIdAndDelete found nothing -> null
+    // Check: must be null -> pass
+    expect(deleted).toBeNull()
+  })
+  it('5 - assertTrue: delete success is true', () => {
+    const success = true
+    // Check: must be true -> pass
+    expect(success).toBe(true)
+  })
+  it('6 - fail: force fail on unexpected branch', () => {
+    const code = 201
+    if (code === 500) {
+      expect.fail('Should never get 500 when creating center!')
+    }
+    expect(code).toBe(201)
+  })
+})
