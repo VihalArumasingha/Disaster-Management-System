@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
-import { AlertTriangle, Clock3, MapPin, RefreshCw, ShieldCheck, UserRound } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, ChevronDown, ChevronUp, Clock3, MapPin, RefreshCw, ShieldCheck, UserRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import HazardReportCard from '../components/hazard/HazardReportCard'
+import HazardReviewMap from '../components/hazard/HazardReviewMap'
 import { getIncomingHazardEscalations } from '../services/hazardReviewService'
 
 const statuses = {
@@ -63,6 +65,7 @@ const getEscalatedBy = (value) => {
 }
 
 function EscalationCard({ record }) {
+    const [expandedReportIndex, setExpandedReportIndex] = useState(null)
     const status = statuses[record.status] || {
         label: titleCase(record.status),
         style: 'border-slate-200 bg-slate-100 text-slate-700'
@@ -72,6 +75,12 @@ function EscalationCard({ record }) {
         ? record.clusterId
         : record.cluster
     const reports = Array.isArray(record.verifiedReportIds) ? record.verifiedReportIds : []
+    const expandedReport = expandedReportIndex === null ? null : reports[expandedReportIndex]
+    const reportMapCluster = useMemo(
+        () => expandedReport ? { reportIds: [expandedReport] } : null,
+        [expandedReport]
+    )
+
     return (
         <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -99,15 +108,40 @@ function EscalationCard({ record }) {
                 <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600"><ShieldCheck size={14} /> Verified reports ({reports.length})</p>
                 {reports.length ? (
                     <div className="mt-2 space-y-3">
-                        {reports.map((report, index) => (
-                            <div key={report._id || index} className="border-t border-slate-200 pt-3 first:border-0 first:pt-0">
-                                <p className="text-xs font-medium text-slate-500">{titleCase(report.hazardType)} · {titleCase(report.status)}</p>
-                                <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{report.description || 'No description provided.'}</p>
-                            </div>
-                        ))}
+                        {reports.map((report, index) => {
+                            const isExpanded = expandedReportIndex === index
+                            return (
+                                <div key={report._id || index} className="border-t border-slate-200 pt-3 first:border-0 first:pt-0">
+                                    <button
+                                        type="button"
+                                        aria-expanded={isExpanded}
+                                        onClick={() => setExpandedReportIndex(isExpanded ? null : index)}
+                                        className="flex w-full items-start justify-between gap-3 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                                    >
+                                        <span className="min-w-0">
+                                            <span className="block text-xs font-medium text-slate-500">{titleCase(report.hazardType)} · {titleCase(report.status)}</span>
+                                            <span className="mt-1 block whitespace-pre-wrap text-sm leading-6 text-slate-700">{report.description || 'No description provided.'}</span>
+                                            <span className="mt-2 block text-xs font-semibold text-blue-700">{isExpanded ? 'Hide report overview' : 'View report overview'}</span>
+                                        </span>
+                                        {isExpanded
+                                            ? <ChevronUp className="mt-1 shrink-0 text-blue-700" size={18} aria-hidden="true" />
+                                            : <ChevronDown className="mt-1 shrink-0 text-slate-500" size={18} aria-hidden="true" />}
+                                    </button>
+                                </div>
+                            )
+                        })}
                     </div>
                 ) : <p className="mt-2 text-sm text-slate-600">No report details were included with this handoff.</p>}
             </section>
+            {expandedReport && reportMapCluster && (
+                <section aria-label="Selected report overview" className="mt-4 space-y-4">
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                        <h3 className="mb-3 text-sm font-semibold text-slate-800">Report location</h3>
+                        <HazardReviewMap cluster={reportMapCluster} height="280px" />
+                    </div>
+                    <HazardReportCard report={expandedReport} />
+                </section>
+            )}
         </article>
     )
 }
