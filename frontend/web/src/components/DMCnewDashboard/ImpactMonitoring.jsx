@@ -393,7 +393,6 @@ function ImpactMonitoring({ apiBase, canEdit = false }) {
     )
 }
 
-/* ---------- UI helpers ---------- */
 
 function Metric({ icon: Icon, label, value, tone = 'slate' }) {
     const tones = {

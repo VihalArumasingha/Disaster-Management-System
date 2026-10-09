@@ -125,6 +125,9 @@ describe('Post-event analytics and report exports', () => {
             title: 'Flood 2026',
             city: 'Colombo',
             hazardType: 'flood',
+            severity: 'High',
+            status: 'issued',
+            createdAt: new Date('2026-10-08T11:30:00Z'),
             issuedAt: new Date('2026-10-08T12:00:00Z')
         }]))
         // 2 deliveries for same citizen: 1 sent, 1 failed → reach rate = 50%
@@ -201,7 +204,7 @@ describe('Post-event analytics and report exports', () => {
             { organization: { organizationName: 'Overseas Aid' }, amount: 25, currency: 'USD' }
         ]))
         HazardReport.find.mockImplementation(() => queryResult([
-            { hazardType: 'flood', status: 'Verified', capturedAt: new Date('2026-10-08') }
+            { hazardType: 'flood', status: 'verified', capturedAt: new Date('2026-10-08'), district: 'Colombo' }
         ]))
         const res = makeResponse()
 
@@ -209,6 +212,13 @@ describe('Post-event analytics and report exports', () => {
 
         expect(res.body.hasData).toBe(true)
         expect(res.body.analytics.generatedBy).toBe('DMC Officer')
+        expect(res.body.analytics.dataQuality.status).toBe('partial')
+        expect(res.body.analytics.dataQuality.missingMetrics).toEqual(expect.arrayContaining([
+            expect.objectContaining({ metric: 'Planned-versus-actual response targets' })
+        ]))
+        expect(res.body.analytics.dataQuality.missingSources).toEqual(expect.arrayContaining([
+            expect.objectContaining({ source: 'Donation-to-distribution lineage' })
+        ]))
         // reachRate = 1/2 = 50%, utilization = 15/20 = 75%, remaining = 10-3 = 7
         expect(res.body.analytics.summary).toMatchObject({
             totalAlerts: 1,
@@ -231,6 +241,23 @@ describe('Post-event analytics and report exports', () => {
         })
         expect(res.body.analytics.charts.distributionByCategory).toEqual([{ name: 'Food', quantity: 3 }])
         expect(res.body.analytics.records.supplies[0]).toMatchObject({ distributed: 3, remaining: 7 })
+        expect(res.body.analytics.records.alerts[0]).toMatchObject({
+            severity: 'High',
+            status: 'issued',
+            issueElapsedMinutes: 30
+        })
+        expect(res.body.analytics.records.shelters[0]).toMatchObject({
+            capacityStatus: 'Below capacity',
+            utilization: 75,
+            overCapacity: 0
+        })
+        expect(HazardReport.find).toHaveBeenCalledWith({
+            status: 'verified',
+            $or: [
+                { archived: false },
+                { archived: { $exists: false } }
+            ]
+        })
         expect(res.body.analytics.records.impacts[0]).toMatchObject({
             affectedPopulation: 100,
             deaths: 1,
@@ -291,14 +318,47 @@ describe('Post-event analytics and report exports', () => {
         expect(res.body.analytics.filters.dateFrom).toBe('2026-10-01')
     })
 
+    it('applies the selected event and dates to distribution reconciliation and contributions', async () => {
+        ReliefSupply.find.mockImplementation(() => queryResult([{
+            _id: '507f191e810c19729de860eb',
+            quantityReceived: 4,
+            disasterEvent: 'Flood 2026',
+            receivedDate: new Date('2026-10-08')
+        }]))
+        const res = makeResponse()
+
+        await generateAnalytics({
+            body: {
+                disasterEvent: 'Flood 2026',
+                dateFrom: '2026-10-08',
+                dateTo: '2026-10-08'
+            },
+            user
+        }, res, vi.fn())
+
+        const distributionMatch = ReliefDistribution.aggregate.mock.calls[0][0][0].$match
+        expect(distributionMatch.disasterEvent.source).toBe('^Flood 2026$')
+        expect(distributionMatch.distributionDate).toEqual({
+            $gte: new Date('2026-10-08T00:00:00.000Z'),
+            $lte: new Date('2026-10-08T23:59:59.999Z')
+        })
+        expect(OrganizationContribution.find.mock.calls[0][0]).toMatchObject({
+            disasterEvent: expect.any(RegExp),
+            contributedAt: distributionMatch.distributionDate
+        })
+        expect(HazardReport.find.mock.calls[0][0]._id).toBeNull()
+        expect(res.body.analytics.dataQuality.missingSources).toEqual(expect.arrayContaining([
+            expect.objectContaining({ source: 'Verified citizen reports for the selected event' })
+        ]))
+    })
+
     it('returns empty analytics with zero percentages and skips delivery and inventory aggregation queries', async () => {
         const res = makeResponse()
         await generateAnalytics({ body: {}, user }, res, vi.fn())
         expect(res.body.hasData).toBe(false)
-        // No data → 0% (avoid division by zero)
+        // Empty delivery rates are zero; shelter utilization is undefined without capacity.
         expect(res.body.analytics.summary).toMatchObject({
             reachRate: 0,
-            shelterUtilization: 0,
             suppliesReceived: 0,
             remainingInventory: 0
         })
@@ -306,6 +366,48 @@ describe('Post-event analytics and report exports', () => {
         expect(WarningDelivery.find).not.toHaveBeenCalled()
         // No supplies → skip aggregate query
         expect(ReliefDistribution.aggregate).not.toHaveBeenCalled()
+        expect(res.body.analytics.summary.shelterUtilization).toBeNull()
+    })
+
+    it('reports over-capacity shelters and recorded stock shortages without dividing by zero', async () => {
+        const supplyId = '507f191e810c19729de860eb'
+        ReliefSupply.find.mockImplementation(() => queryResult([{
+            _id: supplyId,
+            supplyName: 'Water',
+            quantityReceived: 5,
+            disasterEvent: 'Flood 2026'
+        }]))
+        ReliefDistribution.find.mockImplementation(() => queryResult([{
+            supply: { _id: supplyId, supplyName: 'Water', category: 'Water' },
+            quantity: 8,
+            auditStatus: 'Verified'
+        }]))
+        ReliefDistribution.aggregate.mockResolvedValue([{ _id: supplyId, total: 8 }])
+        Shelter.find.mockImplementation(() => queryResult([{
+            _id: 'shelter-1',
+            shelterId: 'SH-1',
+            shelterName: 'Overflow Site',
+            capacity: 0,
+            currentOccupancy: 2,
+            status: 'Active'
+        }]))
+        const res = makeResponse()
+
+        await generateAnalytics({ body: {}, user }, res, vi.fn())
+
+        expect(res.body.analytics.summary.shelterUtilization).toBeNull()
+        expect(res.body.analytics.summary.overcrowdedShelters).toBe(1)
+        expect(res.body.analytics.records.shelters[0]).toMatchObject({
+            utilization: null,
+            overCapacity: 2,
+            capacityStatus: 'Over capacity'
+        })
+        expect(res.body.analytics.records.supplies[0]).toMatchObject({
+            received: 5,
+            distributed: 8,
+            stockShortage: 3,
+            remaining: 0
+        })
     })
 
     it('logs PDF and CSV exports, rejects other formats, and surfaces database errors', async () => {
@@ -320,6 +422,7 @@ describe('Post-event analytics and report exports', () => {
                 action: 'report.exported',
                 details: expect.objectContaining({
                     format,
+                    status: 'generated',
                     filters: expect.objectContaining({ district: 'Colombo', disasterEvent: 'Flood' })
                 })
             }))
@@ -334,8 +437,27 @@ describe('Post-event analytics and report exports', () => {
         const error = new Error('audit database unavailable')
         OperationalAuditLog.create.mockRejectedValue(error)
         const next = vi.fn()
-        await logReportExport({ body: { format: 'PDF' }, user }, makeResponse(), next)
+        await logReportExport({
+            body: {
+                format: 'PDF',
+                filters,
+                generatedAt: '2026-10-08T12:00:00Z'
+            },
+            user
+        }, makeResponse(), next)
         expect(next).toHaveBeenCalledWith(error)
+    })
+
+    it('does not return generated analytics when report history cannot be saved', async () => {
+        const error = new Error('report history unavailable')
+        OperationalAuditLog.create.mockRejectedValue(error)
+        const res = makeResponse()
+        const next = vi.fn()
+
+        await generateAnalytics({ body: {}, user }, res, next)
+
+        expect(next).toHaveBeenCalledWith(error)
+        expect(res.json).not.toHaveBeenCalled()
     })
 
     it('passes analytics option database failures to Express error handling', async () => {

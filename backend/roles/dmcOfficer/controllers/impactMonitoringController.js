@@ -9,6 +9,7 @@ const districts = [
     'Matara', 'Monaragala', 'Mullaitivu', 'Nuwara Eliya', 'Polonnaruwa',
     'Puttalam', 'Ratnapura', 'Trincomalee', 'Vavuniya'
 ]
+
 const populationFields = [
     'affectedPopulation',
     'evacuatedPopulation',
@@ -21,15 +22,20 @@ const populationFields = [
     'hospitalsAffected'
 ]
 const invalid = (res, message) => res.status(400).json({ success: false, message })
+
 const validId = (id) => mongoose.isValidObjectId(id)
+
+// escape special regex characters in search input
 const escapedRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+// validate and build the impact record payload from request body
 const impactPayload = (body) => {
     const payload = {
         disasterEvent: String(body.disasterEvent || '').trim(),
         district: body.district,
         otherImpact: body.otherImpact || ''
     }
+    // check each numeric field is a non-negative whole number
     for (const field of populationFields) {
         payload[field] = Number(body[field])
         if (!Number.isInteger(payload[field]) || payload[field] < 0) {
@@ -43,15 +49,19 @@ const impactPayload = (body) => {
     return { payload }
 }
 
+// GET: list impact records with optional district / event / search filters
 export const listImpactRecords = async (req, res, next) => {
     try {
         const filter = {}
+        // filter by district if provided and valid
         if (req.query.district && districts.includes(req.query.district)) {
             filter.district = req.query.district
         }
+        // filter by event name (case-insensitive partial match)
         if (req.query.event) {
             filter.disasterEvent = new RegExp(escapedRegex(String(req.query.event).trim()), 'i')
         }
+        // global search across event, district, otherImpact
         if (req.query.q) {
             const expression = new RegExp(escapedRegex(String(req.query.q).trim()), 'i')
             filter.$or = [
@@ -72,9 +82,12 @@ export const listImpactRecords = async (req, res, next) => {
 
 export const createImpactRecord = async (req, res, next) => {
     try {
+        // validate payload
         const { payload, error } = impactPayload(req.body)
         if (error) return invalid(res, error)
+        // save record with the current user as recorder
         const record = await ImpactRecord.create({ ...payload, recordedBy: req.user._id })
+        // log the action for auditing
         await writeOperationalAudit({
             actor: req.user._id,
             action: 'impact.recorded',
@@ -92,10 +105,10 @@ export const createImpactRecord = async (req, res, next) => {
 export const updateImpactRecord = async (req, res, next) => {
     try {
         if (!validId(req.params.recordId)) return invalid(res, 'Invalid impact record id.')
+        // validate payload
         const { payload, error } = impactPayload(req.body)
         if (error) return invalid(res, error)
 
-        // NGO Managers may only edit records they created themselves.
         // DMC Officers can edit any record.
         const filter = { _id: req.params.recordId }
         if (req.user.role === 'ngomanager') {
