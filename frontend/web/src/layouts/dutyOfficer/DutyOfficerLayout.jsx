@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+    ClipboardCheck,
     ClipboardList,
     FileText,
     LayoutDashboard,
@@ -145,6 +146,15 @@ function DutyOfficerLayout() {
                         >
                             <FileText size={18} />
                             Reports
+                        </NavLink>
+
+                        <NavLink
+                            to="/dutyofficer/escalations"
+                            className={linkClass}
+                            onClick={closeMobile}
+                        >
+                            <ClipboardCheck size={18} />
+                            Escalated Clusters
                         </NavLink>
                     </nav>
                 </div>

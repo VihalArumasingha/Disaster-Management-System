@@ -28,6 +28,7 @@ const DutyOfficerClusterDetailsPage = lazy(() => import('../../roles/dutyOfficer
 const DutyOfficerReportClustersPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerReportClustersPage'))
 const DutyOfficerReportsPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerReportsPage'))
 const DutyOfficerReportDetailsPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerReportDetailsPage'))
+const DutyOfficerEscalationsPage = lazy(() => import('../../roles/dutyOfficer/pages/DutyOfficerEscalationsPage'))
 
 const DutyOfficerProfilePage = lazy(() =>
     import('../../roles/dutyOfficer/pages/DutyOfficerProfilePage')
@@ -280,6 +281,13 @@ function AppRoutes() {
                     path="reports/:reportId"
                     element={withLoading(
                         <DutyOfficerReportDetailsPage />
+                    )}
+                />
+
+                <Route
+                    path="escalations"
+                    element={withLoading(
+                        <DutyOfficerEscalationsPage />
                     )}
                 />
 
