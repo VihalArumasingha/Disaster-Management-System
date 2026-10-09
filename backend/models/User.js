@@ -28,6 +28,21 @@ const userSchema = new mongoose.Schema(
             trim: true
         },
 
+        nationalId: {
+            type: String,
+            trim: true
+        },
+
+        homeAddress: {
+            type: String,
+            trim: true
+        },
+
+        district: {
+            type: String,
+            trim: true
+        },
+
         location: {
             type: {
                 type: String,

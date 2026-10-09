@@ -316,6 +316,21 @@ function MyReports() {
                                                     {report.description || 'No description provided.'}
                                                 </p>
 
+                                                {Array.isArray(report.reliefDeployments) && report.reliefDeployments.length > 0 && (
+                                                    <div className="mt-3 space-y-2">
+                                                        {report.reliefDeployments.some((d) => d.status === 'Completed') && (
+                                                            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold leading-5 text-emerald-800">
+                                                                ✅ Relief work completed! The {(report.reliefDeployments.find((d) => d.status === 'Completed') || {}).team} team "{(report.reliefDeployments.find((d) => d.status === 'Completed') || {}).teamName}" has finished helping with this report. Thank you — stay safe!
+                                                            </p>
+                                                        )}
+                                                        {(() => { const a = report.reliefDeployments.find((d) => d.status !== 'Completed'); return a ? (
+                                                            <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-semibold leading-5 text-blue-800">
+                                                                🚨 Relief team on the way! The {a.team} team "{a.teamName}" ({a.status}) is assigned to this report. DMO contact: {a.dmoContact || '—'}.
+                                                            </p>
+                                                        ) : null })()}
+                                                    </div>
+                                                )}
+
                                                 <div className="mt-3 flex items-center justify-between gap-3">
                                                     {hasLocation ? (
                                                         <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-slate-500">

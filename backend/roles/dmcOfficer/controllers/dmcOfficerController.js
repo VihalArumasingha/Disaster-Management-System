@@ -1,128 +1,28 @@
 import axios from 'axios'
 import { normalizeRole } from '../../../utils/constants.js'
-import {
-    createTargetArea,
-    createWarning,
-    getWarningForReview,
-    getOverview,
-    issueWarning,
-    listTargetAreas,
-    listWarnings,
-    previewTargetArea,
-    previewWarningRecipients,
-    postWarningUpdate,
-    updateWarning,
-    resolveWarning
-} from '../services/dmcOfficerService.js'
+import { getOverview } from '../services/warningManagementService.js'
+
+// Preserve legacy imports while routes can use the narrower feature-specific controllers.
+export {
+    addWarningUpdate,
+    editWarning,
+    issueWarningNow,
+    reviewWarning,
+    resolveWarningNow,
+    saveWarning,
+    warningRecipientPreview,
+    warnings
+} from './warningController.js'
+export {
+    saveTargetArea,
+    targetAreaPreview,
+    targetAreas
+} from './targetAreaController.js'
 
 export const overview = async (req, res, next) => {
     try {
+        // Keep the dashboard endpoint as a thin adapter so all count queries remain in the service layer.
         res.json({ success: true, overview: await getOverview() })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const targetAreas = async (req, res, next) => {
-    try {
-        res.json({ success: true, targetAreas: await listTargetAreas() })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const targetAreaPreview = async (req, res, next) => {
-    try {
-        const preview = await previewTargetArea(req.body.geometry)
-        res.json({ success: true, ...preview })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const saveTargetArea = async (req, res, next) => {
-    try {
-        const area = await createTargetArea(req.body, req.user._id)
-        res.status(201).json({ success: true, targetArea: area })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const warnings = async (req, res, next) => {
-    try {
-        const startedAt = Date.now()
-        const warningList = await listWarnings()
-        const durationMs = Date.now() - startedAt
-        res.set('Server-Timing', `warning-list;dur=${durationMs}`)
-        if (durationMs > 1500) {
-            console.warn(`Warning list query took ${durationMs}ms`)
-        }
-        res.json({ success: true, warnings: warningList })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const saveWarning = async (req, res, next) => {
-    try {
-        const warning = await createWarning(req.body, req.user._id)
-        res.status(201).json({ success: true, warning })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const editWarning = async (req, res, next) => {
-    try {
-        const warning = await updateWarning(req.params.warningId, req.body)
-        res.json({ success: true, warning })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const addWarningUpdate = async (req, res, next) => {
-    try {
-        res.json({
-            success: true,
-            ...(await postWarningUpdate(req.params.warningId, req.body, req.user._id))
-        })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const reviewWarning = async (req, res, next) => {
-    try {
-        res.json({ success: true, ...(await getWarningForReview(req.params.warningId)) })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const issueWarningNow = async (req, res, next) => {
-    try {
-        const result = await issueWarning(req.params.warningId, req.user._id)
-        res.status(202).json({ success: true, ...result })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const resolveWarningNow = async (req, res, next) => {
-    try {
-        const result = await resolveWarning(req.params.warningId, req.user._id)
-        res.json({ success: true, ...result })
-    } catch (error) {
-        next(error)
-    }
-}
-
-export const warningRecipientPreview = async (req, res, next) => {
-    try {
-        const preview = await previewWarningRecipients(req.body.targetAreaIds)
-        res.json({ success: true, ...preview })
     } catch (error) {
         next(error)
     }
@@ -135,6 +35,7 @@ export const openWeatherTile = async (req, res, next) => {
     const tileY = Number(y)
     const tileCount = 2 ** zoom
 
+    // Reject unsupported layers and out-of-range coordinates before making an upstream request.
     if (
         !['precipitation_new', 'clouds_new', 'temp_new'].includes(layer)
         || !Number.isInteger(zoom)
@@ -161,6 +62,7 @@ export const openWeatherTile = async (req, res, next) => {
     }
 
     try {
+        // Stream the provider's binary tile through this endpoint so the API key remains server-side.
         const response = await axios.get(
             `https://tile.openweathermap.org/map/${layer}/${zoom}/${tileX}/${tileY}.png`,
             {
@@ -174,6 +76,7 @@ export const openWeatherTile = async (req, res, next) => {
         res.status(200).send(response.data)
     } catch (error) {
         if (error.response) {
+            // Translate provider errors into a stable public response without exposing upstream details.
             return res.status(error.response.status === 401 ? 502 : 503).json({
                 success: false,
                 message: 'OpenWeather map tiles are currently unavailable'
@@ -184,6 +87,7 @@ export const openWeatherTile = async (req, res, next) => {
 }
 
 export const profile = (req, res) => {
+    // Return an explicit profile shape rather than serializing the authenticated user document.
     res.json({
         success: true,
         profile: {

@@ -253,6 +253,14 @@ function DutyOfficerDashboardPage() {
                                             </ul>
                                         )}
                                     </div>
+                                    <div className="border-t border-slate-100 bg-slate-50 px-5 py-3">
+                                        <Link
+                                            to="/dutyofficer/escalations"
+                                            className="block text-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                                        >
+                                            View All Escalations &rarr;
+                                        </Link>
+                                    </div>
                                 </section>
                             </aside>
                         </div>

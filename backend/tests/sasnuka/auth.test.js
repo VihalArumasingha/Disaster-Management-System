@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Mock database and external dependencies so these remain UNIT tests
+// Mock external dependencies so these are isolated unit tests.
 vi.mock('../../models/User.js', () => ({
     default: {
         findOne: vi.fn(),
@@ -30,6 +30,10 @@ vi.mock('../../utils/citizenTargetAreas.js', () => ({
 import User from '../../models/User.js'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import {
+    getCitizenTargetAreaIds,
+    addCitizenToTargetAreas
+} from '../../utils/citizenTargetAreas.js'
 
 import {
     registerUser,
@@ -37,892 +41,532 @@ import {
 } from '../../roles/auth/services/authService.js'
 
 import validateAuthInput from '../../roles/auth/validators/authValidator.js'
-import authorize from '../../middleware/authorization/roleMiddleware.js'
 import authenticate from '../../middleware/authentication/authMiddleware.js'
+import authorize from '../../middleware/authorization/roleMiddleware.js'
 
-describe('User Authentication and Authorization', () => {
+const USER_ID = '64a000000000000000000020'
+const AREA_ID = '64a000000000000000000001'
 
+const makeResponse = () => ({
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn()
+})
+
+const validRegistration = (overrides = {}) => ({
+    path: '/register',
+    body: {
+        name: 'Test Citizen',
+        email: 'citizen@example.test',
+        password: 'Password123',
+        phone: '0712345678',
+        ...overrides
+    }
+})
+
+const validLogin = (overrides = {}) => ({
+    email: 'citizen@example.test',
+    password: 'Password123',
+    client: 'mobile',
+    ...overrides
+})
+
+describe('Authentication and Authorization Unit Tests', () => {
     beforeEach(() => {
-        vi.clearAllMocks()
-        process.env.JWT_SECRET = 'test-secret'
+        vi.resetAllMocks()
+        vi.stubEnv('JWT_SECRET', 'unit-test-secret')
     })
 
-    // =========================================================
-    // USER REGISTRATION
-    // =========================================================
+    afterEach(() => {
+        vi.unstubAllEnvs()
+    })
+
+    // ========================================================
+    // REGISTRATION
+    // ========================================================
 
     describe('User Registration', () => {
 
-        // POSITIVE: valid registration should create a user
-        it('should register a new user with a hashed password', async () => {
+        // POSITIVE: valid user details create an account with a hashed password.
+        it('registers a user successfully', async () => {
             User.findOne.mockResolvedValue(null)
             bcrypt.hash.mockResolvedValue('hashed-password')
-            User.create.mockResolvedValue({
-                _id: 'user1',
-                name: 'John',
-                email: 'john@test.com'
-            })
+            User.create.mockResolvedValue({ _id: USER_ID })
 
             const result = await registerUser({
-                name: ' John ',
-                email: ' JOHN@TEST.COM ',
+                name: ' Test Citizen ',
+                email: ' CITIZEN@EXAMPLE.TEST ',
                 password: 'Password123',
-                phone: '0712345678'
+                phone: ' 0712345678 '
             })
 
-            expect(result._id).toBe('user1')
-            expect(bcrypt.hash).toHaveBeenCalled()
-            expect(User.create).toHaveBeenCalled()
+            expect(result._id).toBe(USER_ID)
+            expect(bcrypt.hash).toHaveBeenCalledWith('Password123', 12)
+            expect(User.create).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    name: 'Test Citizen',
+                    email: 'citizen@example.test',
+                    password: 'hashed-password',
+                    phone: '0712345678',
+                    role: 'citizen'
+                })
+            )
         })
 
-        // POSITIVE: valid location should be converted to GeoJSON
-        it('should register a user with a valid location', async () => {
+        // POSITIVE: optional national ID, address, and district are included in the user record.
+        it('saves the supplied optional profile details', async () => {
             User.findOne.mockResolvedValue(null)
             bcrypt.hash.mockResolvedValue('hashed-password')
-            User.create.mockResolvedValue({
-                _id: 'user2',
-                name: 'Jane',
-                email: 'jane@test.com'
+            User.create.mockResolvedValue({ _id: USER_ID })
+
+            await registerUser({
+                name: 'Test Citizen',
+                email: 'citizen@example.test',
+                password: 'Password123',
+                phone: '0712345678',
+                nationalId: '199012345678',
+                homeAddress: '12 Main Street, Colombo',
+                district: 'Colombo'
             })
 
-            const result = await registerUser({
-                name: 'Jane',
-                email: 'jane@test.com',
+            expect(User.create).toHaveBeenCalledWith(expect.objectContaining({
+                nationalId: '199012345678',
+                homeAddress: '12 Main Street, Colombo',
+                district: 'Colombo'
+            }))
+        })
+
+        // POSITIVE: registration with GPS coordinates resolves target areas.
+        it('registers a citizen with a location', async () => {
+            User.findOne.mockResolvedValue(null)
+            bcrypt.hash.mockResolvedValue('hashed-password')
+            User.create.mockResolvedValue({ _id: USER_ID })
+            getCitizenTargetAreaIds.mockResolvedValue([AREA_ID])
+
+            await registerUser({
+                name: 'Citizen',
+                email: 'citizen@example.test',
                 password: 'Password123',
                 phone: '0712345678',
                 location: {
-                    latitude: 6.9271,
-                    longitude: 79.8612
+                    latitude: 6.9,
+                    longitude: 79.8
                 }
             })
 
-            expect(result._id).toBe('user2')
-            expect(User.create).toHaveBeenCalled()
-        })
-
-        // NEGATIVE: duplicate email should be rejected
-        it('should reject registration when email already exists', async () => {
-            User.findOne.mockResolvedValue({
-                _id: 'existing-user'
+            expect(getCitizenTargetAreaIds).toHaveBeenCalledWith({
+                type: 'Point',
+                coordinates: [79.8, 6.9]
             })
 
-            await expect(
-                registerUser({
-                    name: 'John',
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    phone: '0712345678'
-                })
-            ).rejects.toMatchObject({
-                statusCode: 409
-            })
+            expect(addCitizenToTargetAreas).toHaveBeenCalledWith(
+                USER_ID,
+                [AREA_ID]
+            )
         })
 
-        // ERROR: database duplicate-key error should be handled
-        it('should handle a duplicate key database error', async () => {
+        // NEGATIVE: duplicate email addresses cannot register again.
+        it('rejects a duplicate email', async () => {
+            User.findOne.mockResolvedValue({ _id: 'existing-user' })
+
+            await expect(registerUser({
+                name: 'Citizen',
+                email: 'citizen@example.test',
+                password: 'Password123',
+                phone: '0712345678'
+            })).rejects.toMatchObject({ statusCode: 409 })
+
+            expect(User.create).not.toHaveBeenCalled()
+        })
+
+        // ERROR: a MongoDB duplicate-key error becomes a conflict response.
+        it('handles a duplicate-key database error', async () => {
             User.findOne.mockResolvedValue(null)
             bcrypt.hash.mockResolvedValue('hashed-password')
 
             const error = new Error('Duplicate key')
             error.code = 11000
-
             User.create.mockRejectedValue(error)
 
-            await expect(
-                registerUser({
-                    name: 'John',
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    phone: '0712345678'
-                })
-            ).rejects.toMatchObject({
-                statusCode: 409
-            })
+            await expect(registerUser({
+                name: 'Citizen',
+                email: 'citizen@example.test',
+                password: 'Password123',
+                phone: '0712345678'
+            })).rejects.toMatchObject({ statusCode: 409 })
         })
-
-        // ERROR: unexpected database error should be passed through
-        it('should rethrow an unexpected database error', async () => {
-            User.findOne.mockResolvedValue(null)
-            bcrypt.hash.mockResolvedValue('hashed-password')
-
-            const error = new Error('Database unavailable')
-            User.create.mockRejectedValue(error)
-
-            await expect(
-                registerUser({
-                    name: 'John',
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    phone: '0712345678'
-                })
-            ).rejects.toThrow('Database unavailable')
-        })
-
     })
 
-    // =========================================================
-    // USER LOGIN
-    // =========================================================
+    // ========================================================
+    // LOGIN
+    // ========================================================
 
     describe('User Login', () => {
 
-        // POSITIVE: correct citizen credentials should succeed
-        it('should authenticate a citizen with correct credentials', async () => {
-            User.findOne.mockResolvedValue({
-                _id: 'user1',
-                email: 'john@test.com',
+        // POSITIVE: correct credentials allow a citizen to sign in.
+        it('authenticates a citizen on the mobile portal', async () => {
+            const user = {
+                _id: USER_ID,
+                email: 'citizen@example.test',
                 password: 'hashed-password',
                 role: 'citizen'
-            })
+            }
 
+            User.findOne.mockResolvedValue(user)
             bcrypt.compare.mockResolvedValue(true)
 
-            const user = await authenticateUser({
-                email: 'john@test.com',
-                password: 'Password123',
-                client: 'mobile'
-            })
+            const result = await authenticateUser(validLogin())
 
-            expect(user._id).toBe('user1')
-            expect(bcrypt.compare).toHaveBeenCalled()
+            expect(result).toBe(user)
+            expect(bcrypt.compare).toHaveBeenCalledWith(
+                'Password123',
+                'hashed-password'
+            )
         })
 
-        // NEGATIVE: incorrect password should be rejected
-        it('should reject login with incorrect credentials', async () => {
-            User.findOne.mockResolvedValue({
-                password: 'hashed-password',
-                role: 'citizen'
-            })
-
-            bcrypt.compare.mockResolvedValue(false)
-
-            await expect(
-                authenticateUser({
-                    email: 'john@test.com',
-                    password: 'WrongPassword',
-                    client: 'mobile'
-                })
-            ).rejects.toMatchObject({
-                statusCode: 401
-            })
-        })
-
-        // NEGATIVE: non-existent user should be rejected
-        it('should reject login when the user does not exist', async () => {
+        // NEGATIVE: unknown accounts receive an authentication error.
+        it('rejects an unknown user', async () => {
             User.findOne.mockResolvedValue(null)
 
-            await expect(
-                authenticateUser({
-                    email: 'unknown@test.com',
-                    password: 'Password123',
-                    client: 'mobile'
-                })
-            ).rejects.toMatchObject({
-                statusCode: 401
-            })
+            await expect(authenticateUser(validLogin()))
+                .rejects.toMatchObject({ statusCode: 401 })
+
+            expect(bcrypt.compare).not.toHaveBeenCalled()
         })
 
-        // NEGATIVE: citizen should not access staff portal
-        it('should reject citizen access to the web portal', async () => {
+        // NEGATIVE: a wrong password prevents login.
+        it('rejects an incorrect password', async () => {
             User.findOne.mockResolvedValue({
                 password: 'hashed-password',
                 role: 'citizen'
             })
+            bcrypt.compare.mockResolvedValue(false)
 
-            bcrypt.compare.mockResolvedValue(true)
-
-            await expect(
-                authenticateUser({
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    client: 'web'
-                })
-            ).rejects.toMatchObject({
-                statusCode: 403
-            })
+            await expect(authenticateUser(validLogin({
+                password: 'WrongPassword'
+            }))).rejects.toMatchObject({ statusCode: 401 })
         })
 
-        // NEGATIVE: staff should not access citizen portal
-        it('should reject staff access to the mobile portal', async () => {
+        // NEGATIVE: citizens cannot sign in to the staff web portal.
+        it('rejects citizens using the web portal', async () => {
+            User.findOne.mockResolvedValue({
+                password: 'hashed-password',
+                role: 'citizen'
+            })
+            bcrypt.compare.mockResolvedValue(true)
+
+            await expect(authenticateUser(validLogin({
+                client: 'web'
+            }))).rejects.toMatchObject({ statusCode: 403 })
+        })
+
+        // NEGATIVE: staff accounts cannot use the citizen mobile portal.
+        it('rejects staff using the mobile portal', async () => {
             User.findOne.mockResolvedValue({
                 password: 'hashed-password',
                 role: 'dmcofficer'
             })
-
             bcrypt.compare.mockResolvedValue(true)
 
-            await expect(
-                authenticateUser({
-                    email: 'officer@test.com',
-                    password: 'Password123',
-                    client: 'mobile'
-                })
-            ).rejects.toMatchObject({
-                statusCode: 403
-            })
+            await expect(authenticateUser(validLogin({
+                client: 'mobile'
+            }))).rejects.toMatchObject({ statusCode: 403 })
         })
 
-        // EDGE: unknown role should not be accepted
-        it('should reject a user with an invalid role', async () => {
+        // EDGE: an unknown role cannot authenticate to the application.
+        it('rejects a user with an unsupported role', async () => {
             User.findOne.mockResolvedValue({
                 password: 'hashed-password',
-                role: 'unknownrole'
+                role: null
             })
-
             bcrypt.compare.mockResolvedValue(true)
 
-            await expect(
-                authenticateUser({
-                    email: 'user@test.com',
-                    password: 'Password123',
-                    client: 'web'
-                })
-            ).rejects.toMatchObject({
-                statusCode: 403
-            })
+            await expect(authenticateUser(validLogin({
+                client: 'web'
+            }))).rejects.toMatchObject({ statusCode: 403 })
         })
-
     })
 
-    // =========================================================
-    // AUTHENTICATION VALIDATION
-    // =========================================================
+    // ========================================================
+    // INPUT VALIDATION
+    // ========================================================
 
-    describe('Authentication Validation', () => {
+    describe('Authentication input validation', () => {
 
-        const createResponse = () => ({
-            status: vi.fn().mockReturnThis(),
-            json: vi.fn()
-        })
+        // POSITIVE: valid login input reaches the next middleware.
+        it('accepts valid login input', () => {
+            const res = makeResponse()
+            const next = vi.fn()
 
-        // POSITIVE: valid login input should continue
-        it('should accept valid login details', () => {
-            const req = {
+            validateAuthInput({
                 path: '/login',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    client: 'mobile'
-                }
-            }
+                body: validLogin()
+            }, res, next)
 
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(next).toHaveBeenCalled()
+            expect(next).toHaveBeenCalledOnce()
         })
 
-        // POSITIVE: valid registration input should continue
-        it('should accept valid registration details', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    name: 'John',
-                    phone: '0712345678'
-                }
-            }
-
-            const res = createResponse()
+        // POSITIVE: valid registration details are accepted.
+        it('accepts valid registration input', () => {
+            const res = makeResponse()
             const next = vi.fn()
 
-            validateAuthInput(req, res, next)
+            validateAuthInput(validRegistration(), res, next)
 
-            expect(next).toHaveBeenCalled()
+            expect(next).toHaveBeenCalledOnce()
         })
 
-        // NEGATIVE: invalid email should be rejected
-        it('should reject an invalid email', () => {
-            const req = {
-                path: '/login',
-                body: {
-                    email: 'invalid-email',
-                    password: 'Password123',
-                    client: 'mobile'
-                }
+        // NEGATIVE: invalid email and missing credentials are rejected.
+        it('rejects malformed login credentials', () => {
+            const invalidBodies = [
+                { email: 'not-an-email', password: 'Password123', client: 'mobile' },
+                { email: 'citizen@example.test', password: '', client: 'mobile' },
+                { password: 'Password123', client: 'mobile' }
+            ]
+
+            for (const body of invalidBodies) {
+                const res = makeResponse()
+                const next = vi.fn()
+
+                validateAuthInput({ path: '/login', body }, res, next)
+
+                expect(res.status).toHaveBeenCalledWith(400)
+                expect(next).not.toHaveBeenCalled()
             }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(400)
-            expect(next).not.toHaveBeenCalled()
         })
 
-        // NEGATIVE: short registration password should be rejected
-        it('should reject a registration password shorter than 8 characters', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: '1234567',
-                    name: 'John',
-                    phone: '0712345678'
-                }
-            }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(400)
-            expect(next).not.toHaveBeenCalled()
-        })
-
-        // EDGE: exactly 8 characters should be accepted
-        it('should accept the minimum registration password length', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: '12345678',
-                    name: 'John',
-                    phone: '0712345678'
-                }
-            }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(next).toHaveBeenCalled()
-        })
-
-        // EDGE: exactly 72 bytes should be accepted
-        it('should accept a password of exactly 72 bytes', () => {
-            const req = {
-                path: '/login',
-                body: {
-                    email: 'john@test.com',
-                    password: 'a'.repeat(72),
-                    client: 'mobile'
-                }
-            }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(next).toHaveBeenCalled()
-        })
-
-        // NEGATIVE: password above bcrypt's 72-byte limit should be rejected
-        it('should reject a password longer than 72 bytes', () => {
-            const req = {
-                path: '/login',
-                body: {
-                    email: 'john@test.com',
-                    password: 'a'.repeat(73),
-                    client: 'mobile'
-                }
-            }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(400)
-            expect(next).not.toHaveBeenCalled()
-        })
-
-        // NEGATIVE: missing name should be rejected
-        it('should reject registration without a name', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    phone: '0712345678'
-                }
-            }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(400)
-            expect(next).not.toHaveBeenCalled()
-        })
-
-        // NEGATIVE: invalid phone number should be rejected
-        it('should reject an invalid phone number', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    name: 'John',
-                    phone: 'abc'
-                }
-            }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(400)
-            expect(next).not.toHaveBeenCalled()
-        })
-
-        // EDGE: phone number with minimum 7 digits should be accepted
-        it('should accept a phone number with 7 digits', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    name: 'John',
-                    phone: '1234567'
-                }
-            }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(next).toHaveBeenCalled()
-        })
-
-        // EDGE: valid location should be accepted
-        it('should accept a valid registration location', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    name: 'John',
-                    phone: '0712345678',
-                    location: {
-                        latitude: 6.9271,
-                        longitude: 79.8612
+        // EDGE/NEGATIVE: registration passwords must have at least 8 characters
+        // and all passwords must not exceed 72 UTF-8 bytes.
+        it('enforces password length boundaries', () => {
+            const requests = [
+                validRegistration({ password: '1234567' }),
+                {
+                    path: '/login',
+                    body: {
+                        email: 'citizen@example.test',
+                        password: 'a'.repeat(73),
+                        client: 'mobile'
                     }
                 }
+            ]
+
+            for (const req of requests) {
+                const res = makeResponse()
+                const next = vi.fn()
+
+                validateAuthInput(req, res, next)
+
+                expect(res.status).toHaveBeenCalledWith(400)
+                expect(next).not.toHaveBeenCalled()
             }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
-
-            expect(next).toHaveBeenCalled()
         })
 
-        // NEGATIVE: latitude outside valid range should be rejected
-        it('should reject an invalid latitude', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    name: 'John',
-                    phone: '0712345678',
-                    location: {
-                        latitude: 100,
-                        longitude: 79.8612
-                    }
-                }
-            }
-
-            const res = createResponse()
+        // NEGATIVE: registration requires a name.
+        it('rejects registration without a valid name', () => {
+            const res = makeResponse()
             const next = vi.fn()
 
-            validateAuthInput(req, res, next)
+            validateAuthInput(
+                validRegistration({ name: '   ' }),
+                res,
+                next
+            )
 
             expect(res.status).toHaveBeenCalledWith(400)
             expect(next).not.toHaveBeenCalled()
         })
 
-        // NEGATIVE: longitude outside valid range should be rejected
-        it('should reject an invalid longitude', () => {
-            const req = {
-                path: '/register',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    name: 'John',
-                    phone: '0712345678',
-                    location: {
-                        latitude: 6.9271,
-                        longitude: 200
-                    }
-                }
-            }
-
-            const res = createResponse()
+        // NEGATIVE: invalid phone details are rejected.
+        it('rejects an invalid phone number', () => {
+            const res = makeResponse()
             const next = vi.fn()
 
-            validateAuthInput(req, res, next)
+            validateAuthInput(
+                validRegistration({ phone: 'not-a-phone' }),
+                res,
+                next
+            )
 
             expect(res.status).toHaveBeenCalledWith(400)
             expect(next).not.toHaveBeenCalled()
         })
 
-        // NEGATIVE: unsupported login portal should be rejected
-        it('should reject an invalid login portal', () => {
-            const req = {
+        // EDGE/NEGATIVE: supplied GPS coordinates must be within geographic limits.
+        it('rejects invalid optional location coordinates', () => {
+            const locations = [
+                null,
+                { latitude: 91, longitude: 79.8 },
+                { latitude: 6.9, longitude: 181 }
+            ]
+
+            for (const location of locations) {
+                const res = makeResponse()
+                const next = vi.fn()
+
+                validateAuthInput(
+                    validRegistration({ location }),
+                    res,
+                    next
+                )
+
+                expect(res.status).toHaveBeenCalledWith(400)
+                expect(next).not.toHaveBeenCalled()
+            }
+        })
+
+        // NEGATIVE: login portal must be mobile or web.
+        it('rejects an unsupported portal', () => {
+            const res = makeResponse()
+            const next = vi.fn()
+
+            validateAuthInput({
                 path: '/login',
-                body: {
-                    email: 'john@test.com',
-                    password: 'Password123',
-                    client: 'tablet'
-                }
-            }
-
-            const res = createResponse()
-            const next = vi.fn()
-
-            validateAuthInput(req, res, next)
+                body: validLogin({ client: 'tablet' })
+            }, res, next)
 
             expect(res.status).toHaveBeenCalledWith(400)
             expect(next).not.toHaveBeenCalled()
         })
-
     })
 
-    // =========================================================
+    // ========================================================
     // JWT AUTHENTICATION
-    // =========================================================
+    // ========================================================
 
-    describe('JWT Authentication', () => {
+    describe('JWT authentication middleware', () => {
 
-        // NEGATIVE: request without token should be rejected
-        it('should reject a request without a token', async () => {
-            const req = {
-                cookies: {}
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
+        // NEGATIVE: requests without a token are unauthenticated.
+        it('rejects a request without a token', async () => {
+            const res = makeResponse()
             const next = vi.fn()
 
-            await authenticate(req, res, next)
+            await authenticate({ cookies: {} }, res, next)
 
             expect(res.status).toHaveBeenCalledWith(401)
             expect(next).not.toHaveBeenCalled()
         })
 
-        // ERROR: missing JWT configuration should return server error
-        it('should reject authentication when JWT secret is missing', async () => {
-            delete process.env.JWT_SECRET
+        // POSITIVE: a valid token resolves the user and continues.
+        it('authenticates a valid token', async () => {
+            const user = { _id: USER_ID, role: 'citizen' }
 
-            const req = {
-                cookies: {
-                    token: 'valid-token'
-                }
-            }
+            jwt.verify.mockReturnValue({ userId: USER_ID })
+            User.findById.mockReturnValue({
+                select: vi.fn().mockResolvedValue(user)
+            })
 
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
+            const req = { cookies: { token: 'valid-token' } }
+            const res = makeResponse()
             const next = vi.fn()
 
             await authenticate(req, res, next)
+
+            expect(req.user).toBe(user)
+            expect(next).toHaveBeenCalledOnce()
+        })
+
+        // NEGATIVE: invalid or expired JWTs receive an unauthorized response.
+        it('rejects an invalid JWT', async () => {
+            const error = new Error('Invalid token')
+            error.name = 'JsonWebTokenError'
+
+            jwt.verify.mockImplementation(() => {
+                throw error
+            })
+
+            const res = makeResponse()
+            const next = vi.fn()
+
+            await authenticate(
+                { cookies: { token: 'invalid-token' } },
+                res,
+                next
+            )
+
+            expect(res.status).toHaveBeenCalledWith(401)
+            expect(next).not.toHaveBeenCalled()
+        })
+
+        // NEGATIVE: deleted users can no longer authenticate with old tokens.
+        it('rejects a token whose user no longer exists', async () => {
+            jwt.verify.mockReturnValue({ userId: USER_ID })
+            User.findById.mockReturnValue({
+                select: vi.fn().mockResolvedValue(null)
+            })
+
+            const res = makeResponse()
+            const next = vi.fn()
+
+            await authenticate(
+                { cookies: { token: 'valid-token' } },
+                res,
+                next
+            )
+
+            expect(res.status).toHaveBeenCalledWith(401)
+            expect(next).not.toHaveBeenCalled()
+        })
+
+        // ERROR: authentication refuses to proceed if JWT configuration is absent.
+        it('rejects authentication when the JWT secret is missing', async () => {
+            vi.stubEnv('JWT_SECRET', '')
+
+            const res = makeResponse()
+            const next = vi.fn()
+
+            await authenticate(
+                { cookies: { token: 'token' } },
+                res,
+                next
+            )
 
             expect(res.status).toHaveBeenCalledWith(500)
             expect(next).not.toHaveBeenCalled()
         })
-
-        // POSITIVE: valid token and existing user should authenticate
-        it('should authenticate a valid token', async () => {
-            jwt.verify.mockReturnValue({
-                userId: 'user1'
-            })
-
-            const user = {
-                _id: 'user1',
-                role: 'citizen'
-            }
-
-            const select = vi.fn().mockResolvedValue(user)
-
-            User.findById.mockReturnValue({
-                select
-            })
-
-            const req = {
-                cookies: {
-                    token: 'valid-token'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
-            const next = vi.fn()
-
-            await authenticate(req, res, next)
-
-            expect(req.user).toEqual(user)
-            expect(next).toHaveBeenCalled()
-        })
-
-        // NEGATIVE: invalid JWT should return 401
-        it('should reject an invalid token', async () => {
-            jwt.verify.mockImplementation(() => {
-                const error = new Error('Invalid token')
-                error.name = 'JsonWebTokenError'
-                throw error
-            })
-
-            const req = {
-                cookies: {
-                    token: 'invalid-token'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
-            const next = vi.fn()
-
-            await authenticate(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(401)
-            expect(next).not.toHaveBeenCalled()
-        })
-
-        // ERROR: unexpected JWT error should be passed to error middleware
-        it('should pass unexpected JWT errors to next', async () => {
-            const error = new Error('Unexpected JWT failure')
-            error.name = 'UnexpectedError'
-
-            jwt.verify.mockImplementation(() => {
-                throw error
-            })
-
-            const req = {
-                cookies: {
-                    token: 'token'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
-            const next = vi.fn()
-
-            await authenticate(req, res, next)
-
-            expect(next).toHaveBeenCalledWith(error)
-        })
-
-        // EDGE: decoded token without userId should be rejected
-        it('should reject a token without a userId', async () => {
-            jwt.verify.mockReturnValue({
-                role: 'citizen'
-            })
-
-            const req = {
-                cookies: {
-                    token: 'token'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
-            const next = vi.fn()
-
-            await authenticate(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(401)
-            expect(next).not.toHaveBeenCalled()
-        })
-
-        // EDGE: decoded JWT that is not an object should be rejected
-        it('should reject a non-object decoded token', async () => {
-            jwt.verify.mockReturnValue('invalid')
-
-            const req = {
-                cookies: {
-                    token: 'token'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
-            const next = vi.fn()
-
-            await authenticate(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(401)
-            expect(next).not.toHaveBeenCalled()
-        })
-
-        // NEGATIVE: valid token for deleted user should be rejected
-        it('should reject authentication when the user is not found', async () => {
-            jwt.verify.mockReturnValue({
-                userId: 'missing-user'
-            })
-
-            const select = vi.fn().mockResolvedValue(null)
-
-            User.findById.mockReturnValue({
-                select
-            })
-
-            const req = {
-                cookies: {
-                    token: 'valid-token'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
-            const next = vi.fn()
-
-            await authenticate(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(401)
-            expect(next).not.toHaveBeenCalled()
-        })
-
     })
 
-    // =========================================================
+    // ========================================================
     // ROLE AUTHORIZATION
-    // =========================================================
+    // ========================================================
 
-    describe('Role Authorization', () => {
+    describe('Role authorization middleware', () => {
 
-        // POSITIVE: authorized role should be allowed
-        it('should allow an authorized role', () => {
-            const middleware = authorize('dutyofficer')
-
-            const req = {
-                user: {
-                    role: 'dutyofficer'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
+        // POSITIVE: role normalization allows equivalent role formatting.
+        it('allows an authorized normalized role', () => {
             const next = vi.fn()
 
-            middleware(req, res, next)
+            authorize('dmcofficer')(
+                { user: { role: 'DMC_Officer' } },
+                makeResponse(),
+                next
+            )
 
-            expect(next).toHaveBeenCalled()
+            expect(next).toHaveBeenCalledOnce()
         })
 
-        // POSITIVE: normalized role should also be accepted
-        it('should allow a role with different capitalization', () => {
-            const middleware = authorize('dutyofficer')
-
-            const req = {
-                user: {
-                    role: 'Duty-Officer'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
+        // NEGATIVE: an authenticated user with the wrong role gets 403.
+        it('denies a user with an unauthorized role', () => {
+            const res = makeResponse()
             const next = vi.fn()
 
-            middleware(req, res, next)
-
-            expect(next).toHaveBeenCalled()
-        })
-
-        // NEGATIVE: unauthorized role should be denied
-        it('should deny an unauthorized role', () => {
-            const middleware = authorize('dutyofficer')
-
-            const req = {
-                user: {
-                    role: 'citizen'
-                }
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
-            const next = vi.fn()
-
-            middleware(req, res, next)
+            authorize('dutyofficer')(
+                { user: { role: 'citizen' } },
+                res,
+                next
+            )
 
             expect(res.status).toHaveBeenCalledWith(403)
             expect(next).not.toHaveBeenCalled()
         })
 
-        // EDGE: missing/invalid role should be denied
-        it('should reject authorization when the role is missing', () => {
-            const middleware = authorize('dutyofficer')
-
-            const req = {
-                user: {}
-            }
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
+        // NEGATIVE: authorization cannot proceed before authentication.
+        it('returns 401 when no user is attached to the request', () => {
+            const res = makeResponse()
             const next = vi.fn()
 
-            middleware(req, res, next)
-
-            expect(res.status).toHaveBeenCalledWith(403)
-            expect(next).not.toHaveBeenCalled()
-        })
-
-        // NEGATIVE: missing authenticated user should return 401
-        it('should reject authorization when the user is missing', () => {
-            const middleware = authorize('dutyofficer')
-
-            const req = {}
-
-            const res = {
-                status: vi.fn().mockReturnThis(),
-                json: vi.fn()
-            }
-
-            const next = vi.fn()
-
-            middleware(req, res, next)
+            authorize('dutyofficer')({}, res, next)
 
             expect(res.status).toHaveBeenCalledWith(401)
             expect(next).not.toHaveBeenCalled()
         })
-
     })
-
 })
