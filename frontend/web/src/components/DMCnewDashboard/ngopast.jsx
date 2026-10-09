@@ -72,14 +72,14 @@ export default function NgoPastPage() {
   }, [])
 
   function filterValidImages(list) {
-    return Array.from(list || []).filter((f) => f && (f.type === 'image/jpeg' || f.type === 'image/png' || f.type === 'image/jpg'))
+    return Array.from(list || []).filter((f) => f && (f.type === 'image/jpeg' || f.type === 'image/jpg' || f.type === 'image/png' || f.type === 'image/webp'))
   }
 
   function pickFiles(list, isEdit) {
     const valid = filterValidImages(list)
     if (valid.length < (list || []).length) {
-      if (isEdit) setEditError('Only JPEG/PNG images allowed')
-      else setFormError('Only JPEG/PNG images allowed')
+      if (isEdit) setEditError('Only JPEG/PNG/WebP images allowed')
+      else setFormError('Only JPEG/PNG/WebP images allowed')
     }
     if (isEdit) {
       const next = [...editFiles, ...valid].slice(0, MAX_IMAGES)
@@ -116,7 +116,8 @@ export default function NgoPastPage() {
       fd.append('note', note.trim())
       files.forEach((f) => fd.append('images', f))
       const res = await fetch(API_BASE + '/api/ngopast', { method: 'POST', body: fd, credentials: 'include' })
-      if (!res.ok) throw new Error('Submit failed (' + res.status + ')')
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.message || ('Submit failed (' + res.status + ')'))
       setNote('')
       setFiles([])
       setPreviews([])

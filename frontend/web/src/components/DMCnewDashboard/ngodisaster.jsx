@@ -84,9 +84,9 @@ export default function NGODisasterPage() {
     const [error, setError]             = useState('')
 
     const [search, setSearch]           = useState('')
-    const [filterSeverity, setFilterSeverity] = useState('')
-    const [filterHazardType, setFilterHazardType] = useState('')
-    const [filterStatus, setFilterStatus] = useState('')
+    const [filterSeverity, setFilterSeverity]   = useState('')
+    const [filterActive, setFilterActive]       = useState('')
+    const [filterStatus, setFilterStatus]       = useState('')
 
     const searchTimeout = useRef(null)
 
@@ -97,7 +97,7 @@ export default function NGODisasterPage() {
         try {
             const params = new URLSearchParams()
             if (filterSeverity)    params.set('severity', filterSeverity)
-            if (filterHazardType)  params.set('hazardType', filterHazardType)
+            if (filterActive)      params.set('active', filterActive)
             if (filterStatus)      params.set('status', filterStatus)
             if (search.trim())     params.set('q', search.trim())
 
@@ -116,7 +116,7 @@ export default function NGODisasterPage() {
         } finally {
             setLoading(false)
         }
-    }, [filterSeverity, filterHazardType, filterStatus, search])
+    }, [filterSeverity, filterActive, filterStatus, search])
 
     useEffect(() => { load() }, [load])
 
@@ -148,7 +148,7 @@ export default function NGODisasterPage() {
     const reset = () => {
         setSearch('')
         setFilterSeverity('')
-        setFilterHazardType('')
+        setFilterActive('')
         setFilterStatus('')
     }
 
@@ -169,7 +169,7 @@ export default function NGODisasterPage() {
         // Applied filters note
         const filters = []
         if (filterSeverity)   filters.push(`Severity: ${filterSeverity}`)
-        if (filterHazardType) filters.push(`Type: ${filterHazardType}`)
+        if (filterActive) filters.push(`Active: ${filterActive}`)
         if (filterStatus)     filters.push(`Status: ${filterStatus}`)
         if (search)           filters.push(`Search: "${search}"`)
         if (filters.length) {
@@ -264,22 +264,24 @@ export default function NGODisasterPage() {
                     />
                     <Select
                         icon={<span className="text-xs">📊</span>}
-                        label="Active status"
+                        label="All statuses"
                         value={filterStatus}
                         onChange={v => setFilterStatus(v)}
                         options={[
-                            { value: 'true', label: 'Active' },
-                            { value: 'false', label: 'Inactive' },
+                            { value: 'draft', label: 'Draft' },
+                            { value: 'issued', label: 'Issued' },
+                            { value: 'partially_issued', label: 'Partially issued' },
+                            { value: 'delivery_failed', label: 'Failed' },
                         ]}
                     />
                     <Select
-                        icon={<span className="text-xs">�</span>}
-                        label="Show on Donation"
-                        value={filterHazardType}
-                        onChange={v => setFilterHazardType(v)}
+                        icon={<span className="text-xs">◈</span>}
+                        label="Active / Inactive"
+                        value={filterActive}
+                        onChange={v => setFilterActive(v)}
                         options={[
-                            { value: 'true', label: 'Yes' },
-                            { value: 'false', label: 'No' },
+                            { value: 'true', label: 'Active' },
+                            { value: 'false', label: 'Inactive' },
                         ]}
                     />
                 </div>
