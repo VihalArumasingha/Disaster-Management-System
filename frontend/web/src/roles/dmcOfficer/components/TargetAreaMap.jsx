@@ -22,6 +22,7 @@ function TargetAreaMap({
     overlays = [],
     onChange,
     weatherLayer = '',
+    focusLocation = null,
     editable = false,
     height = '420px'
 }) {
@@ -32,6 +33,7 @@ function TargetAreaMap({
     const geometryRef = useRef(geometry)
     const overlaysRef = useRef(overlays)
     const overlayGroupRef = useRef(null)
+    const focusMarkerRef = useRef(null)
     const [weatherError, setWeatherError] = useState('')
 
     useEffect(() => {
@@ -175,12 +177,47 @@ function TargetAreaMap({
 
         return () => {
             resizeObserver.disconnect()
+            focusMarkerRef.current = null
             featureGroupRef.current = null
             overlayGroupRef.current = null
             mapRef.current = null
             map.remove()
         }
     }, [editable, weatherLayer])
+
+    useEffect(() => {
+        const map = mapRef.current
+        if (!map || !focusLocation) {
+            focusMarkerRef.current?.remove()
+            focusMarkerRef.current = null
+            return
+        }
+
+        const { latitude, longitude } = focusLocation
+        if (
+            !Number.isFinite(latitude)
+            || !Number.isFinite(longitude)
+            || latitude < -90
+            || latitude > 90
+            || longitude < -180
+            || longitude > 180
+        ) {
+            return
+        }
+
+        // Keep the reference pin separate from the editable polygon so locating a report cannot change saved geometry.
+        focusMarkerRef.current?.remove()
+        focusMarkerRef.current = L.circleMarker([latitude, longitude], {
+            radius: 8,
+            color: '#ffffff',
+            weight: 3,
+            fillColor: '#dc2626',
+            fillOpacity: 1
+        })
+            .bindTooltip(`Reference location: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`)
+            .addTo(map)
+        map.setView([latitude, longitude], Math.max(map.getZoom(), 13))
+    }, [focusLocation, weatherLayer])
 
     return (
         <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white">

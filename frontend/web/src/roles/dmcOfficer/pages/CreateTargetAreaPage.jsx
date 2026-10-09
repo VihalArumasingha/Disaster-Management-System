@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, Users } from 'lucide-react'
+import { ArrowLeft, LocateFixed, MapPin, Users } from 'lucide-react'
 import api from '../../../services/api'
 import TargetAreaMap from '../components/TargetAreaMap'
 
@@ -41,6 +41,10 @@ function CreateTargetAreaPage() {
         description: ''
     })
     const [geometry, setGeometry] = useState(null)
+    const [latitudeInput, setLatitudeInput] = useState('')
+    const [longitudeInput, setLongitudeInput] = useState('')
+    const [focusLocation, setFocusLocation] = useState(null)
+    const [coordinateError, setCoordinateError] = useState('')
     const [weatherLayer, setWeatherLayer] = useState('')
     const [citizenCount, setCitizenCount] = useState(null)
     const [previewLoading, setPreviewLoading] = useState(false)
@@ -90,6 +94,29 @@ function CreateTargetAreaPage() {
                 ? current.hazardTypes.filter((item) => item !== hazard)
                 : [...current.hazardTypes, hazard]
         }))
+    }
+
+    const locateCoordinates = (event) => {
+        event.preventDefault()
+        const latitude = Number(latitudeInput)
+        const longitude = Number(longitudeInput)
+
+        if (
+            !latitudeInput.trim()
+            || !longitudeInput.trim()
+            || !Number.isFinite(latitude)
+            || !Number.isFinite(longitude)
+            || latitude < -90
+            || latitude > 90
+            || longitude < -180
+            || longitude > 180
+        ) {
+            setCoordinateError('Enter a valid latitude (-90 to 90) and longitude (-180 to 180).')
+            return
+        }
+
+        setCoordinateError('')
+        setFocusLocation({ latitude, longitude })
     }
 
     const saveArea = async (event) => {
@@ -214,7 +241,7 @@ function CreateTargetAreaPage() {
                         <div>
                             <h2 className="text-sm font-semibold text-slate-800">Define Area on Map <span className="text-red-600">*</span></h2>
                             <p className="mt-1 text-xs text-slate-500">
-                                Use the polygon draw tool to outline the affected boundary. OpenWeather layer is optional.
+                                Use the polygon draw tool to outline the affected boundary. You can also locate a report coordinate for reference. OpenWeather layer is optional.
                             </p>
                         </div>
                         <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
@@ -231,11 +258,57 @@ function CreateTargetAreaPage() {
                             </select>
                         </label>
                     </div>
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                            <label className="block flex-1 text-xs font-semibold text-slate-700">
+                                Latitude
+                                <input
+                                    type="number"
+                                    min="-90"
+                                    max="90"
+                                    step="any"
+                                    value={latitudeInput}
+                                    onChange={(event) => setLatitudeInput(event.target.value)}
+                                    placeholder="e.g. 6.8732"
+                                    className="mt-1.5 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                />
+                            </label>
+                            <label className="block flex-1 text-xs font-semibold text-slate-700">
+                                Longitude
+                                <input
+                                    type="number"
+                                    min="-180"
+                                    max="180"
+                                    step="any"
+                                    value={longitudeInput}
+                                    onChange={(event) => setLongitudeInput(event.target.value)}
+                                    placeholder="e.g. 79.9192"
+                                    className="mt-1.5 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                />
+                            </label>
+                            <button
+                                type="button"
+                                onClick={locateCoordinates}
+                                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-800 hover:bg-blue-50"
+                            >
+                                <LocateFixed size={16} /> Locate
+                            </button>
+                        </div>
+                        {coordinateError && (
+                            <p role="alert" className="mt-2 text-xs text-red-700">{coordinateError}</p>
+                        )}
+                        {focusLocation && !coordinateError && (
+                            <p className="mt-2 text-xs text-slate-600">
+                                Reference pin at {focusLocation.latitude.toFixed(5)}, {focusLocation.longitude.toFixed(5)}. This pin is not included in the target-area boundary.
+                            </p>
+                        )}
+                    </div>
                     <div className="mt-3">
                         <TargetAreaMap
                             geometry={geometry}
                             onChange={handleGeometryChange}
                             weatherLayer={weatherLayer}
+                            focusLocation={focusLocation}
                             editable
                             height="min(60vh, 520px)"
                         />
