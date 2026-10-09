@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import api from '../../services/api'
 
+// numeric fields shown in the form + details view
 const populationFields = [
     ['affectedPopulation', 'Affected population'],
     ['evacuatedPopulation', 'Evacuated population'],
@@ -52,6 +53,7 @@ const emptyRecord = {
 
 const fieldClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
 
+
 function ImpactMonitoring({ apiBase, canEdit = false }) {
     const { pathname } = useLocation()
     const resolvedApiBase = apiBase
@@ -64,11 +66,12 @@ function ImpactMonitoring({ apiBase, canEdit = false }) {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [notice, setNotice] = useState('')
-    const [modal, setModal] = useState('')
+    const [modal, setModal] = useState('')  
     const [selected, setSelected] = useState(null)
     const [form, setForm] = useState(emptyRecord)
     const [saving, setSaving] = useState(false)
 
+    // fetch records whenever search / district / api base changes
     useEffect(() => {
         let active = true
         api.get(`${resolvedApiBase}/impact-records`, {
@@ -85,15 +88,17 @@ function ImpactMonitoring({ apiBase, canEdit = false }) {
                 if (active) setError(requestError.response?.data?.message || 'Could not load district impact records.')
             })
             .finally(() => { if (active) setLoading(false) })
-        return () => { active = false }
+        return () => { active = false }  
     }, [resolvedApiBase, search, district])
 
+    // open the read-only details modal
     const openDetails = (record) => {
         setSelected(record)
         setError('')
         setModal('details')
     }
 
+    // open the create / edit form modal
     const openForm = (record = null) => {
         if (!canEdit) return
         setSelected(record)
@@ -104,12 +109,14 @@ function ImpactMonitoring({ apiBase, canEdit = false }) {
         setModal('form')
     }
 
+    // create or update a record
     const saveRecord = async (event) => {
         event.preventDefault()
         if (!canEdit) return
         setSaving(true)
         setError('')
         try {
+            // ensure numeric fields are numbers
             const payload = {
                 ...form,
                 ...Object.fromEntries(populationFields.map(([key]) => [key, Number(form[key])]))
@@ -122,6 +129,7 @@ function ImpactMonitoring({ apiBase, canEdit = false }) {
                 setNotice('District impact record saved.')
             }
             setModal('')
+            // refresh list
             const { data } = await api.get(`${resolvedApiBase}/impact-records`, {
                 params: { q: search || undefined, district: district || undefined }
             })
@@ -136,6 +144,7 @@ function ImpactMonitoring({ apiBase, canEdit = false }) {
 
     return (
         <main className="mx-auto max-w-7xl px-5 pb-12 pt-20 sm:px-8 lg:pt-10">
+         
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">Disaster response</p>
@@ -393,8 +402,8 @@ function ImpactMonitoring({ apiBase, canEdit = false }) {
     )
 }
 
-/* ---------- UI helpers ---------- */
 
+// small card showing a single headline metric
 function Metric({ icon: Icon, label, value, tone = 'slate' }) {
     const tones = {
         blue: 'from-blue-50 to-white border-blue-100',
@@ -413,6 +422,7 @@ function Metric({ icon: Icon, label, value, tone = 'slate' }) {
     )
 }
 
+// section wrapper with a title and icon header
 function Section({ title, icon: Icon, children }) {
     return (
         <section className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
@@ -432,9 +442,9 @@ function Detail({ icon: Icon, label, value, className = '' }) {
         <div className={`flex gap-3 ${className}`}>
             {Icon && <Icon size={16} className="mt-1 shrink-0 text-slate-500" />}
             <div className="min-w-0">
-                {/* Bold label */}
+               
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-700">{label}</p>
-                {/* Normal-weight value */}
+          
                 <p className="mt-1 break-words text-sm text-slate-800">{value}</p>
             </div>
         </div>

@@ -8,7 +8,9 @@ import writeOperationalAudit from '../../../utils/operationalAudit.js'
 import { USER_ROLES } from '../../../utils/constants.js'
 
 const categories = ['Food', 'Water', 'Medical', 'Shelter', 'Clothing', 'Hygiene', 'Equipment', 'Other']
+
 const auditStatuses = ['Pending Verification', 'Verified', 'Rejected', 'Flagged']
+
 const districts = [
     'Ampara', 'Anuradhapura', 'Badulla', 'Batticaloa', 'Colombo',
     'Galle', 'Gampaha', 'Hambantota', 'Jaffna', 'Kalutara', 'Kandy',
@@ -16,18 +18,23 @@ const districts = [
     'Matara', 'Monaragala', 'Mullaitivu', 'Nuwara Eliya', 'Polonnaruwa',
     'Puttalam', 'Ratnapura', 'Trincomalee', 'Vavuniya'
 ]
-
 const invalid = (res, message) => res.status(400).json({ success: false, message })
+
 const notFound = (res, message) => res.status(404).json({ success: false, message })
+
 const validId = (id) => mongoose.isValidObjectId(id)
+// escape special regex characters in search input
 const escapedRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+// get today's date at midnight UTC (used for expiry checks)
 const startOfUtcDay = (date = new Date()) => (
     new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 )
 
+// aggregation pipeline that computes distributed / remaining quantity and effective status
 const inventoryPipeline = (match = {}, excludeDistributionId = null) => [
     { $match: match },
     {
+        // join with distributions to calculate total distributed per supply
         $lookup: {
             from: 'reliefdistributions',
             let: { supplyId: '$_id' },
@@ -45,6 +52,7 @@ const inventoryPipeline = (match = {}, excludeDistributionId = null) => [
         }
     },
     {
+        // store total distributed on the row
         $set: {
             totalDistributed: {
                 $ifNull: [{ $arrayElemAt: ['$distributionTotals.total', 0] }, 0]
@@ -52,6 +60,7 @@ const inventoryPipeline = (match = {}, excludeDistributionId = null) => [
         }
     },
     {
+        // compute remaining quantity and effective status 
         $set: {
             remainingQuantity: { $max: [0, { $subtract: ['$quantityReceived', '$totalDistributed'] }] },
             effectiveStatus: {
@@ -71,10 +80,12 @@ const inventoryPipeline = (match = {}, excludeDistributionId = null) => [
     },
     { $unset: 'distributionTotals' },
     { $sort: { receivedDate: -1 } },
+
     { $lookup: { from: 'organizations', localField: 'organization', foreignField: '_id', as: 'organization' } },
     { $unwind: { path: '$organization', preserveNullAndEmptyArrays: true } }
 ]
 
+// GET: return dropdown options for the distribution form
 export const listReliefSupplyOptions = async (req, res, next) => {
     try {
         const isOrganization = req.user.role === USER_ROLES.organization
@@ -83,6 +94,7 @@ export const listReliefSupplyOptions = async (req, res, next) => {
             isOrganization
                 ? Organization.find({ _id: organizationId, userAccount: req.user._id, status: 'Active' }).select('organizationId organizationName').lean()
                 : Organization.find({ status: 'Active' }).select('organizationId organizationName').sort({ organizationName: 1 }).lean(),
+            // only available, non-expired supplies with remaining quantity > 0
             ReliefSupply.aggregate(inventoryPipeline({
                 ...(isOrganization ? { organization: organizationId } : {}),
                 status: 'Available',
@@ -110,9 +122,11 @@ export const listReliefSupplyOptions = async (req, res, next) => {
     }
 }
 
+// GET: list relief supplies with filters (category, organization, search)
 export const listReliefSupplies = async (req, res, next) => {
     try {
         const match = {}
+        // organizations only see their own supplies
         if (req.user.role === USER_ROLES.organization) {
             match.organization = req.user.organizationId
         }
@@ -120,6 +134,7 @@ export const listReliefSupplies = async (req, res, next) => {
         if (req.user.role !== USER_ROLES.organization && req.query.organization && validId(req.query.organization)) {
             match.organization = new mongoose.Types.ObjectId(req.query.organization)
         }
+        // global search across several text fields
         if (req.query.q) {
             const expression = new RegExp(escapedRegex(String(req.query.q).trim()), 'i')
             match.$or = [
@@ -161,6 +176,7 @@ export const createReliefSupply = async (req, res, next) => {
         if (!validId(selectedOrganizationId)) return invalid(res, 'Select a valid organization.')
         if (!req.body.disasterEvent?.trim()) return invalid(res, 'Disaster event is required.')
 
+        // the supply must belong to an active organization
         const organization = await Organization.findOne({
             _id: selectedOrganizationId,
             ...(isOrganization ? { userAccount: req.user._id } : {}),
@@ -168,6 +184,7 @@ export const createReliefSupply = async (req, res, next) => {
         }).select('_id')
         if (!organization) return invalid(res, 'Supplies must be registered against an active organization.')
 
+      
         const receivedDate = new Date(req.body.receivedDate)
         const expiryDate = req.body.expiryDate ? new Date(req.body.expiryDate) : null
         if (!Number.isFinite(receivedDate.getTime())) return invalid(res, 'Received date is invalid.')
@@ -189,6 +206,7 @@ export const createReliefSupply = async (req, res, next) => {
             status: req.body.status === 'On Hold' ? 'On Hold' : 'Available',
             recordedBy: req.user._id
         })
+        // log the action for auditing
         await writeOperationalAudit({
             actor: req.user._id,
             action: 'relief_supply.registered',
@@ -202,14 +220,17 @@ export const createReliefSupply = async (req, res, next) => {
     }
 }
 
+// GET: list relief distributions with filters (audit status, search)
 export const listReliefDistributions = async (req, res, next) => {
     try {
+        // organizations only see their own distributions
         const filter = req.user.role === USER_ROLES.organization
             ? { organization: req.user.organizationId }
             : {}
         if (req.query.auditStatus && auditStatuses.includes(req.query.auditStatus)) {
             filter.auditStatus = req.query.auditStatus
         }
+        // global search across several text fields
         if (req.query.q) {
             const expression = new RegExp(escapedRegex(String(req.query.q).trim()), 'i')
             filter.$or = [
@@ -241,6 +262,7 @@ export const createReliefDistribution = async (req, res, next) => {
     try {
         const { supply: supplyId, destinationType } = req.body
         const isOrganization = req.user.role === USER_ROLES.organization
+        // validate quantity and destination
         const quantity = Number(req.body.quantity)
         if (!validId(supplyId)) return invalid(res, 'Select a valid supply.')
         if (!Number.isFinite(quantity) || quantity <= 0) {
@@ -256,6 +278,7 @@ export const createReliefDistribution = async (req, res, next) => {
         const distributionDate = new Date(req.body.distributionDate)
         if (!Number.isFinite(distributionDate.getTime())) return invalid(res, 'Distribution date is invalid.')
 
+        // build the destination object based on destination type
         let destination = { district: '', shelter: null, reliefLocation: null }
         if (destinationType === 'District') {
             if (!districts.includes(req.body.district)) return invalid(res, 'Select a valid district.')
@@ -273,6 +296,7 @@ export const createReliefDistribution = async (req, res, next) => {
         }
 
         let distribution
+        // wrap in a transaction so supply check + create are atomic
         await session.withTransaction(async () => {
             const supplyRows = await ReliefSupply.aggregate(inventoryPipeline({
                 _id: new mongoose.Types.ObjectId(supplyId),
@@ -281,6 +305,7 @@ export const createReliefDistribution = async (req, res, next) => {
                 $or: [{ expiryDate: null }, { expiryDate: { $gte: startOfUtcDay() } }]
             })).session(session)
             const supply = supplyRows[0]
+            // validate supply availability
             if (!supply || supply.remainingQuantity <= 0) {
                 const error = new Error('Supply is unavailable, expired, on hold, or depleted.')
                 error.statusCode = 400
@@ -296,6 +321,7 @@ export const createReliefDistribution = async (req, res, next) => {
                 error.statusCode = 400
                 throw error
             }
+            // lock the supply row by incrementing inventoryRevision (optimistic lock)
             const inventoryLock = await ReliefSupply.updateOne(
                 { _id: supply._id },
                 { $inc: { inventoryRevision: 1 } },
@@ -306,6 +332,7 @@ export const createReliefDistribution = async (req, res, next) => {
                 error.statusCode = 409
                 throw error
             }
+            // create the distribution record
             const [createdDistribution] = await ReliefDistribution.create([{
                 supply: supply._id,
                 organization: supply.organization._id,
@@ -327,6 +354,7 @@ export const createReliefDistribution = async (req, res, next) => {
             }], { session })
             distribution = createdDistribution
         })
+        // log the action for auditing
         await writeOperationalAudit({
             actor: req.user._id,
             action: 'distribution.created',
@@ -342,6 +370,7 @@ export const createReliefDistribution = async (req, res, next) => {
     }
 }
 
+// PUT: update the audit status of a distribution
 export const updateReliefDistributionAudit = async (req, res, next) => {
     const session = await mongoose.startSession()
     try {
@@ -354,6 +383,7 @@ export const updateReliefDistributionAudit = async (req, res, next) => {
             return invalid(res, 'Verification notes cannot exceed 2000 characters.')
         }
         let distribution
+        // transaction: re-check inventory then update audit status
         await session.withTransaction(async () => {
             const existing = await ReliefDistribution.findById(req.params.distributionId).session(session)
             if (!existing) {
@@ -361,6 +391,7 @@ export const updateReliefDistributionAudit = async (req, res, next) => {
                 error.statusCode = 404
                 throw error
             }
+            // if restoring from Rejected, make sure supply is still available
             if (
                 existing.auditStatus === 'Rejected'
                 && req.body.auditStatus !== 'Rejected'
@@ -377,6 +408,7 @@ export const updateReliefDistributionAudit = async (req, res, next) => {
                     throw error
                 }
             }
+            // lock the supply row with optimistic lock
             const inventoryLock = await ReliefSupply.updateOne(
                 { _id: existing.supply },
                 { $inc: { inventoryRevision: 1 } },
@@ -387,6 +419,7 @@ export const updateReliefDistributionAudit = async (req, res, next) => {
                 error.statusCode = 409
                 throw error
             }
+            // update audit fields
             existing.auditStatus = req.body.auditStatus
             existing.verificationNotes = verificationNotes
             if (req.body.auditStatus === 'Verified') {
@@ -396,6 +429,7 @@ export const updateReliefDistributionAudit = async (req, res, next) => {
                 existing.verifiedBy = null
                 existing.verifiedAt = null
             }
+            // append to audit history
             existing.auditHistory.push({
                 auditStatus: req.body.auditStatus,
                 notes: verificationNotes,
@@ -404,6 +438,7 @@ export const updateReliefDistributionAudit = async (req, res, next) => {
             await existing.save({ session })
             distribution = existing
         })
+        // log the action for auditing
         await writeOperationalAudit({
             actor: req.user._id,
             action: req.body.auditStatus === 'Verified' ? 'distribution.verified' : 'distribution.audit_updated',

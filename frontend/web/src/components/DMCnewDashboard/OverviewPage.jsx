@@ -6,37 +6,62 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
+async function requestMetrics() {
+    const res = await fetch(`${API_BASE}/api/ngomanager/overview/metrics`, {
+        credentials: 'include'
+    })
+    if (!res.ok) {
+        const message = res.status === 401 || res.status === 403
+            ? 'Your session expired or you lack NGO-manager access. Please sign in again.'
+            : `Failed to load metrics (server responded ${res.status})`
+        const requestError = new Error(message)
+        requestError.status = res.status
+        throw requestError
+    }
+    const data = await res.json()
+    if (!data?.metrics) throw new Error('Metrics response was empty')
+    return { metrics: data.metrics, status: res.status }
+}
+
 export default function OverviewPage() {
     const [metrics, setMetrics] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [httpStatus, setHttpStatus] = useState(null)
 
+    useEffect(() => {
+        let active = true
+        requestMetrics()
+            .then(({ metrics: nextMetrics, status }) => {
+                if (!active) return
+                setHttpStatus(status)
+                setMetrics(nextMetrics)
+            })
+            .catch((requestError) => {
+                if (!active) return
+                setHttpStatus(requestError.status ?? null)
+                setError(requestError.message || 'Failed to load metrics')
+            })
+            .finally(() => {
+                if (active) setLoading(false)
+            })
+        return () => { active = false }
+    }, [])
+
     const loadMetrics = async () => {
         setLoading(true)
         setError('')
         try {
-            const res = await fetch(`${API_BASE}/api/ngomanager/overview/metrics`, {
-                credentials: 'include'
-            })
-            setHttpStatus(res.status)
-            if (res.status === 401 || res.status === 403) {
-                throw new Error('Your session expired or you lack NGO-manager access. Please sign in again.')
-            }
-            if (!res.ok) throw new Error(`Failed to load metrics (server responded ${res.status})`)
-            const data = await res.json()
-            if (!data?.metrics) throw new Error('Metrics response was empty')
-            setMetrics(data.metrics)
-        } catch (err) {
-            setError(err.message || 'Failed to load metrics')
+            const { metrics: nextMetrics, status } = await requestMetrics()
+            setHttpStatus(status)
+            setMetrics(nextMetrics)
+        } catch (requestError) {
+            setHttpStatus(requestError.status ?? null)
+            setError(requestError.message || 'Failed to load metrics')
         } finally {
             setLoading(false)
         }
     }
-
-    useEffect(() => {
-        loadMetrics()
-    }, [])
 
     if (loading) {
         return (
@@ -122,6 +147,12 @@ export default function OverviewPage() {
                         label="TOTAL COLLECTION CENTERS"
                         value={metrics.totalCollectionCenters}
                         valueColor="text-blue-600"
+                    />
+                    <MetricCard
+                        emoji="🚨"
+                        label="TOTAL ALERTS RECORDED"
+                        value={metrics.totalAlerts}
+                        valueColor="text-red-500"
                     />
                     <MetricCard
                         emoji="🚧"

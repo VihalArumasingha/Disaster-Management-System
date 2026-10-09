@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, FileSpreadsheet, FileText, LoaderCircle, Search } from 'lucide-react'
+import { FileSpreadsheet, FileText, LoaderCircle, Search } from 'lucide-react'
 import {
     Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
     ResponsiveContainer, Tooltip, XAxis, YAxis
@@ -13,25 +13,30 @@ const emptyFilters = { district: '', hazardType: '', disasterEvent: '', dateFrom
 const fieldClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
 const chartColors = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#65a30d', '#db2777']
 const quantity = new Intl.NumberFormat()
-const formatNumber = (value) => quantity.format(Number(value) || 0)
-const formatPercent = (value) => `${Number(value || 0).toFixed(1)}%`
+const formatNumber = (value) => value === null || value === undefined || value === ''
+    ? '—'
+    : quantity.format(Number(value) || 0)
+const formatPercent = (value) => value === null || value === undefined || !Number.isFinite(Number(value))
+    ? '—'
+    : `${Number(value).toFixed(1)}%`
 const formatMoney = (value) => `LKR ${formatNumber(value)}`
 const toCsvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
 
 // Single source of truth: which sections exist, their label, and their column order.
 const REPORT_SECTIONS = [
-    { key: 'alerts', label: 'Alerts', columns: ['date', 'event', 'hazardType', 'district', 'severity', 'status', 'total', 'reached', 'message'] },
+    { key: 'alerts', label: 'Alerts', columns: ['issuedAt', 'event', 'hazardType', 'district', 'severity', 'status', 'issueElapsedMinutes', 'recipients', 'reached'] },
     { key: 'hazardReports', label: 'Hazard reports', columns: ['capturedAt', 'hazardType', 'status', 'district', 'event', 'reporter', 'description'] },
-    { key: 'shelters', label: 'Shelters', columns: ['shelterId', 'shelterName', 'district', 'event', 'capacity', 'occupancy', 'available', 'status'] },
-    { key: 'supplies', label: 'Relief supplies', columns: ['supplyId', 'supplyName', 'organization', 'event', 'category', 'received', 'distributed', 'remaining', 'unit', 'status'] },
-    { key: 'distributions', label: 'Distributions and audit', columns: ['distributionId', 'event', 'organization', 'supply', 'district', 'quantity', 'auditStatus', 'verifiedBy', 'verifiedAt', 'verificationNotes'] },
+    { key: 'shelters', label: 'Shelters', columns: ['shelterId', 'shelterName', 'district', 'event', 'capacity', 'occupancy', 'available', 'overCapacity', 'utilization', 'capacityStatus', 'status'] },
+    { key: 'supplies', label: 'Relief supplies', columns: ['supplyId', 'supplyName', 'organization', 'event', 'category', 'received', 'distributed', 'remaining', 'stockShortage', 'unit', 'status'] },
+    { key: 'distributions', label: 'Distributions and audit', columns: ['distributionId', 'event', 'organization', 'supply', 'district', 'destinationType', 'affectedArea', 'quantity', 'auditStatus', 'verifiedBy', 'verifiedAt', 'verificationNotes'] },
     { key: 'contributions', label: 'Organization contributions', columns: ['organization', 'type', 'description', 'amount', 'currency', 'quantity', 'event', 'date'] },
     { key: 'impacts', label: 'District impact', columns: ['event', 'district', 'affectedPopulation', 'evacuatedPopulation', 'peopleInShelters', 'injured', 'deaths', 'housesDamaged', 'schoolsAffected', 'roadsBlocked', 'hospitalsAffected', 'otherImpact', 'date'] }
 ]
 
 const isDateKey = (key) => /At$|Date$|date$/i.test(key)
 const isNumberKey = (key) =>
-    ['total', 'reached', 'capacity', 'occupancy', 'available', 'received', 'distributed', 'remaining',
+    ['total', 'reached', 'capacity', 'occupancy', 'available', 'overCapacity', 'utilization',
+     'issueElapsedMinutes', 'recipients', 'received', 'distributed', 'remaining', 'stockShortage',
      'quantity', 'amount', 'affectedPopulation', 'evacuatedPopulation', 'peopleInShelters', 'injured',
      'deaths', 'housesDamaged', 'schoolsAffected', 'roadsBlocked', 'hospitalsAffected'].includes(key)
 
@@ -48,6 +53,7 @@ function formatCellValue(key, value) {
         const parsed = new Date(value)
         if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString()
     }
+    if (key === 'utilization') return `${Number(value).toFixed(1)}%`
     if (isNumberKey(key)) return formatNumber(value)
     if (typeof value === 'object') return JSON.stringify(value)
     return String(value)
@@ -136,13 +142,13 @@ function AnalyticsReports({ apiBase = '/dmcofficer' }) {
         setError('')
         setNotice('')
         try {
+            if (format === 'CSV') downloadCsv()
+            else downloadPdf()
             await api.post(`${apiBase}/analytics/exports`, {
                 format,
                 filters: analytics.filters,
                 generatedAt: analytics.generatedAt
             })
-            if (format === 'CSV') downloadCsv()
-            else downloadPdf()
             setNotice(`${format} audit report downloaded.`)
         } catch (requestError) {
             setError(requestError.response?.data?.message || `Could not export the ${format} report.`)
@@ -165,9 +171,16 @@ function AnalyticsReports({ apiBase = '/dmcofficer' }) {
     ] : []
 
     const summaryRows = analytics ? [
+        ['Report data status', analytics.dataQuality?.status === 'partial' ? 'Partial Data' : 'Complete'],
+        ['Known missing metrics and sources', [
+            ...(analytics.dataQuality?.missingMetrics || []).map(({ metric, reason }) => `${metric}: ${reason}`),
+            ...(analytics.dataQuality?.missingSources || []).map(({ source, reason }) => `${source}: ${reason}`)
+        ].join(' | ') || 'None reported'],
+        ['Disclaimer', analytics.dataQuality?.disclaimer || ''],
         ['Total alerts', formatNumber(analytics.summary.totalAlerts)],
         ['Citizen reach / reach rate', `${formatNumber(analytics.summary.citizenReach)} / ${formatPercent(analytics.summary.reachRate)}`],
         ['Shelter capacity / occupancy / utilization', `${formatNumber(analytics.summary.shelterCapacity)} / ${formatNumber(analytics.summary.shelterOccupancy)} / ${formatPercent(analytics.summary.shelterUtilization)}`],
+        ['Over-capacity shelters', formatNumber(analytics.summary.overcrowdedShelters)],
         ['Supplies received / distributed / remaining', `${formatNumber(analytics.summary.suppliesReceived)} / ${formatNumber(analytics.summary.suppliesDistributed)} / ${formatNumber(analytics.summary.remainingInventory)}`],
         ['Organization financial contributions', formatMoney(analytics.summary.organizationContributions)],
         ['Contributions by currency', Object.entries(analytics.summary.organizationContributionsByCurrency || {}).map(([c, v]) => `${c}: ${formatNumber(v)}`).join(' · ') || '—'],
@@ -306,7 +319,7 @@ function AnalyticsReports({ apiBase = '/dmcofficer' }) {
         ['Total alerts', formatNumber(analytics.summary.totalAlerts), 'Warnings issued in the selected period'],
         ['Citizen reach', formatNumber(analytics.summary.citizenReach), `${formatPercent(analytics.summary.reachRate)} of targeted deliveries reached`],
         ['Shelter utilization', formatPercent(analytics.summary.shelterUtilization), `${formatNumber(analytics.summary.shelterOccupancy)} occupied / ${formatNumber(analytics.summary.shelterCapacity)} capacity`],
-        ['Relief inventory', formatNumber(analytics.summary.remainingInventory), `${formatNumber(analytics.summary.suppliesReceived)} received · ${formatNumber(analytics.summary.suppliesDistributed)} distributed`],
+        ['Relief inventory', formatNumber(analytics.summary.remainingInventory), `${formatNumber(analytics.summary.suppliesReceived)} received · ${formatNumber(analytics.summary.suppliesDistributed)} distributed; per-supply shortage shown in details`],
         ['Organization contributions', formatMoney(analytics.summary.organizationContributions), 'Recorded financial contributions'],
         ['Affected population', formatNumber(analytics.summary.districtImpact.affectedPopulation), `${formatNumber(analytics.summary.districtImpact.deaths)} deaths · ${formatNumber(analytics.summary.districtImpact.injured)} injured`]
     ] : []
@@ -379,10 +392,24 @@ function AnalyticsReports({ apiBase = '/dmcofficer' }) {
                         <span>Generated {new Date(analytics.generatedAt).toLocaleString()} by {analytics.generatedBy || user?.name || 'Unknown user'}</span>
                         <span>{selectedFilters.map(([label, value]) => `${label}: ${value}`).join(' · ')}</span>
                     </div>
+                    {analytics.dataQuality?.status === 'partial' && (
+                        <section aria-label="Partial data notice" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                            <h2 className="font-semibold">Partial Data</h2>
+                            <p className="mt-1">{analytics.dataQuality.disclaimer}</p>
+                            <ul className="mt-2 list-inside list-disc space-y-1">
+                                {[...(analytics.dataQuality.missingMetrics || []), ...(analytics.dataQuality.missingSources || [])]
+                                    .map((item) => (
+                                        <li key={item.metric || item.source}>
+                                            <strong>{item.metric || item.source}:</strong> {item.reason}
+                                        </li>
+                                    ))}
+                            </ul>
+                        </section>
+                    )}
                     {!hasData ? (
                         <div role="status" className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
-                            <h2 className="font-semibold text-amber-900">No data matches these filters</h2>
-                            <p className="mt-1 text-sm text-amber-800">Change or clear one or more filters and generate the analysis again.</p>
+                            <h2 className="font-semibold text-amber-900">No matching records</h2>
+                            <p className="mt-1 text-sm text-amber-800">This is a valid empty result for the selected filters. You can change the filters and generate the analysis again.</p>
                         </div>
                     ) : (
                         <>
@@ -448,12 +475,13 @@ function ChartCard({ title, children }) {
 
 function ReportDetails({ analytics }) {
     const sections = [
-        ['Shelter information', analytics.records.shelters, ['shelterName', 'district', 'event', 'capacity', 'occupancy', 'available', 'status']],
-        ['Relief supply information', analytics.records.supplies, ['supplyName', 'organization', 'event', 'category', 'received', 'distributed', 'remaining', 'unit']],
-        ['Distribution and audit information', analytics.records.distributions, ['distributionId', 'event', 'organization', 'supply', 'district', 'quantity', 'auditStatus', 'verifiedBy', 'verifiedAt', 'verificationNotes']],
+        ['Alert and response timing information', analytics.records.alerts, ['event', 'district', 'hazardType', 'severity', 'status', 'issuedAt', 'issueElapsedMinutes', 'recipients', 'reached']],
+        ['Shelter information', analytics.records.shelters, ['shelterName', 'district', 'event', 'capacity', 'occupancy', 'available', 'overCapacity', 'utilization', 'capacityStatus', 'status']],
+        ['Relief supply information', analytics.records.supplies, ['supplyName', 'organization', 'event', 'category', 'received', 'distributed', 'remaining', 'stockShortage', 'unit']],
+        ['Distribution and audit information', analytics.records.distributions, ['distributionId', 'event', 'organization', 'supply', 'district', 'destinationType', 'affectedArea', 'quantity', 'auditStatus', 'verifiedBy', 'verifiedAt', 'verificationNotes']],
         ['Organization contributions', analytics.records.contributions, ['organization', 'type', 'description', 'amount', 'currency', 'quantity', 'event', 'date']],
         ['District impact', analytics.records.impacts, ['event', 'district', 'affectedPopulation', 'evacuatedPopulation', 'peopleInShelters', 'injured', 'deaths', 'housesDamaged', 'schoolsAffected', 'roadsBlocked', 'hospitalsAffected', 'otherImpact', 'date']],
-        ['Hazard reports', analytics.records.hazardReports, ['hazardType', 'status', 'capturedAt']]
+        ['Verified citizen hazard reports', analytics.records.hazardReports, ['hazardType', 'status', 'capturedAt', 'district']]
     ]
     return (
         <section className="mt-6 space-y-4">
@@ -471,7 +499,7 @@ function ReportDetails({ analytics }) {
                                 <tbody className="divide-y divide-slate-100">
                                     {rows.map((row, index) => (
                                         <tr key={row.distributionId || row.supplyId || row.shelterId || `${row.event}-${row.district}-${index}`}>
-                                            {columns.map((column) => <td key={column} className="max-w-64 px-3 py-2 text-slate-700">{formatCell(row[column])}</td>)}
+                                            {columns.map((column) => <td key={column} className="max-w-64 px-3 py-2 text-slate-700">{formatCell(row[column], column)}</td>)}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -486,9 +514,10 @@ function ReportDetails({ analytics }) {
     )
 }
 
-function formatCell(value) {
+function formatCell(value, key) {
     if (value === null || value === undefined || value === '') return '—'
     if (typeof value === 'object') return new Date(value).toLocaleString()
+    if (key === 'utilization') return `${Number(value).toFixed(1)}%`
     return String(value)
 }
 

@@ -22,6 +22,7 @@ const hazardTypes = ['flood', 'landslide', 'road_blockage', 'tsunami', 'storm', 
 const auditStatuses = ['Pending Verification', 'Verified', 'Rejected', 'Flagged']
 
 const invalid = (res, message) => res.status(400).json({ success: false, message })
+
 const validDate = (value) => (
     !value
     || (
@@ -30,6 +31,7 @@ const validDate = (value) => (
         && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
     )
 )
+
 const dateFilter = (from, to) => {
     if (!from && !to) return {}
     return {
@@ -37,6 +39,7 @@ const dateFilter = (from, to) => {
         $lte: to ? new Date(`${to}T23:59:59.999Z`) : new Date()
     }
 }
+
 const normalizedFilter = (body = {}) => ({
     district: String(body.district || ''),
     hazardType: String(body.hazardType || ''),
@@ -45,8 +48,14 @@ const normalizedFilter = (body = {}) => ({
     dateTo: String(body.dateTo || ''),
     organization: String(body.organization || '')
 })
+
+// case-insensitive exact-match regex
 const textMatch = (value) => new RegExp(`^${String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+
+// sum a numeric field across rows
 const sum = (rows, key) => rows.reduce((total, row) => total + (Number(row[key]) || 0), 0)
+
+// group rows by a key and add up numeric fields
 const aggregateBy = (rows, key, measure) => {
     const grouped = new Map()
     for (const row of rows) {
@@ -57,12 +66,27 @@ const aggregateBy = (rows, key, measure) => {
     }
     return [...grouped.values()]
 }
+
+// check if a warning delivery reached the user on any channel
 const deliveryReached = (delivery) => (
     delivery.inApp?.status === 'sent'
     || ['sent', 'delivered'].includes(delivery.sms?.status)
     || delivery.email?.status === 'sent'
 )
 
+// minutes between warning creation and issuance
+const alertIssueElapsedMinutes = (warning) => {
+    const createdAt = new Date(warning.createdAt)
+    const issuedAt = new Date(warning.issuedAt)
+    return warning.issuedAt
+        && Number.isFinite(createdAt.getTime())
+        && Number.isFinite(issuedAt.getTime())
+        && issuedAt >= createdAt
+        ? Number(((issuedAt - createdAt) / 60000).toFixed(1))
+        : null
+}
+
+// validate all incoming filters
 const validateFilters = (filters, res) => {
     if (filters.district && !districts.includes(filters.district)) return invalid(res, 'Select a valid district.')
     if (filters.hazardType && !hazardTypes.includes(filters.hazardType)) return invalid(res, 'Select a valid hazard type.')
@@ -73,6 +97,7 @@ const validateFilters = (filters, res) => {
     return null
 }
 
+// GET: return dropdown options for the analytics filter form
 export const getAnalyticsOptions = async (req, res, next) => {
     try {
         const [events, organizations] = await Promise.all([
@@ -98,12 +123,15 @@ export const getAnalyticsOptions = async (req, res, next) => {
     }
 }
 
+// POST: generate the full analytics report for the given filters
 export const generateAnalytics = async (req, res, next) => {
     try {
+        // validate filters
         const filters = normalizedFilter(req.body)
         const validation = validateFilters(filters, res)
         if (validation) return validation
 
+        // build query fragments for each collection
         const dateRange = dateFilter(filters.dateFrom, filters.dateTo)
         const eventMatch = filters.disasterEvent ? textMatch(filters.disasterEvent) : null
         const orgId = filters.organization ? new mongoose.Types.ObjectId(filters.organization) : null
@@ -143,6 +171,9 @@ export const generateAnalytics = async (req, res, next) => {
             ...(eventMatch ? { disasterEvent: eventMatch } : {}),
             ...(dateRange.$gte || dateRange.$lte ? { distributionDate: dateRange } : {})
         }
+        const scopedOrganizationIds = orgId
+            ? (filters.district && !districtOrganizationIds.some((id) => String(id) === String(orgId)) ? [] : [orgId])
+            : districtOrganizationIds
         const impactQuery = {
             ...(filters.district ? { district: filters.district } : {}),
             ...(eventMatch ? { disasterEvent: eventMatch } : {}),
@@ -153,19 +184,25 @@ export const generateAnalytics = async (req, res, next) => {
             ...(eventMatch ? { disasterEvent: eventMatch } : {})
         }
         const contributionQuery = {
-            ...((orgId || filters.district) ? {
-                organization: {
-                    $in: orgId
-                        ? (filters.district && !districtOrganizationIds.some((id) => String(id) === String(orgId)) ? [] : [orgId])
-                        : districtOrganizationIds
-                }
-            } : {}),
+            ...((orgId || filters.district) ? { organization: { $in: scopedOrganizationIds } } : {}),
             ...(eventMatch ? { disasterEvent: eventMatch } : {}),
             ...(dateRange.$gte || dateRange.$lte ? { contributedAt: dateRange } : {})
         }
+        const hazardReportQuery = {
+            status: 'verified',
+            $or: [
+                { archived: false },
+                { archived: { $exists: false } }
+            ],
+            ...(filters.district ? { district: filters.district } : {}),
+            ...(filters.hazardType ? { hazardType: filters.hazardType } : {}),
+            ...(dateRange.$gte || dateRange.$lte ? { capturedAt: dateRange } : {}),
+            ...(eventMatch ? { _id: null } : {})   // no event field in this collection
+        }
 
+        // fetch all data in parallel
         const [warnings, supplies, distributions, impactRecords, shelters, occupancy, contributions, hazardReports] = await Promise.all([
-            Warning.find(warningQuery).select('title city hazardType issuedAt createdAt deliverySummary').lean(),
+            Warning.find(warningQuery).select('title city hazardType severity status issuedAt createdAt deliverySummary').lean(),
             ReliefSupply.find({
                 ...supplyQuery,
                 ...(dateRange.$gte || dateRange.$lte ? { receivedDate: dateRange } : {})
@@ -174,6 +211,7 @@ export const generateAnalytics = async (req, res, next) => {
                 .populate('supply', 'supplyName category unit')
                 .populate('organization', 'organizationName')
                 .populate('shelter', 'shelterName district')
+                .populate('reliefLocation', 'name areaType')
                 .populate('verifiedBy', 'name')
                 .populate('responsibleOfficer', 'name')
                 .populate('auditHistory.changedBy', 'name')
@@ -184,17 +222,12 @@ export const generateAnalytics = async (req, res, next) => {
                 ...(dateRange.$gte || dateRange.$lte ? { recordedAt: dateRange } : {}),
                 ...(eventMatch ? { disasterEvent: eventMatch } : {})
             }).populate('shelter', 'district disasterEvent shelterName capacity').sort({ recordedAt: 1 }).lean(),
-            OrganizationContribution.find({
-                ...(orgId ? { organization: orgId } : {}),
-                ...(eventMatch ? { disasterEvent: eventMatch } : {}),
-                ...(dateRange.$gte || dateRange.$lte ? { contributedAt: dateRange } : {})
-            }).populate('organization', 'organizationName district').sort({ contributedAt: -1 }).lean(),
-            HazardReport.find({
-                ...(filters.hazardType ? { hazardType: filters.hazardType } : {}),
-                ...(dateRange.$gte || dateRange.$lte ? { capturedAt: dateRange } : {})
-            }).select('hazardType status capturedAt submittedAt').lean()
+            OrganizationContribution.find(contributionQuery)
+                .populate('organization', 'organizationName district').sort({ contributedAt: -1 }).lean(),
+            HazardReport.find(hazardReportQuery).select('hazardType status capturedAt district').lean()
         ])
 
+        // calculate alert reach per warning and unique users
         const warningIds = warnings.map((warning) => warning._id)
         const deliveries = warningIds.length
             ? await WarningDelivery.find({ warningId: { $in: warningIds } }).select('warningId recipientId inApp.status sms.status email.status').lean()
@@ -213,15 +246,43 @@ export const generateAnalytics = async (req, res, next) => {
             }
         }
 
+        // match shelter occupancy records to our shelters
         const matchedShelterIds = new Set(shelters.map((shelter) => String(shelter._id)))
         const matchingOccupancy = occupancy.filter((record) => (
             record.shelter
             && matchedShelterIds.has(String(record.shelter._id))
             && (!filters.district || record.shelter.district === filters.district)
         ))
+        const occupancyByShelter = new Map()
+        for (const record of matchingOccupancy) {
+            occupancyByShelter.set(String(record.shelter._id), record)
+        }
+        const hasShelterDateFilter = Boolean(filters.dateFrom || filters.dateTo)
+        const hasValidOccupancy = (value) => (
+            value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0
+        )
+        const hasValidCapacity = (value) => (
+            value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0
+        )
+        // data quality flags
+        const missingHistoricalOccupancy = hasShelterDateFilter && shelters.some((shelter) => (
+            !hasValidOccupancy(occupancyByShelter.get(String(shelter._id))?.occupancyCount)
+        ))
+        const missingCurrentOccupancy = !hasShelterDateFilter
+            && shelters.some((shelter) => !hasValidOccupancy(shelter.currentOccupancy))
+        const missingShelterCapacity = shelters.some((shelter) => (
+                !hasValidCapacity(shelter.capacity)
+        ))
+        // compare supplies received vs distributed
         const allDistributionsForSupplies = supplies.length
             ? await ReliefDistribution.aggregate([
-                { $match: { supply: { $in: supplies.map((supply) => supply._id) }, auditStatus: { $ne: 'Rejected' } } },
+                {
+                    $match: {
+                        ...distributionQuery,
+                        supply: { $in: supplies.map((supply) => supply._id) },
+                        auditStatus: { $ne: 'Rejected' }
+                    }
+                },
                 { $group: { _id: '$supply', total: { $sum: '$quantity' } } }
             ])
             : []
@@ -230,8 +291,17 @@ export const generateAnalytics = async (req, res, next) => {
         const totalRemaining = supplies.reduce((total, supply) => (
             total + Math.max(0, supply.quantityReceived - (distributedBySupply.get(String(supply._id)) || 0))
         ), 0)
-        const occupancyTotal = sum(shelters, 'currentOccupancy')
-        const capacityTotal = sum(shelters, 'capacity')
+        // totals (null if data incomplete)
+        const occupancyTotal = hasShelterDateFilter
+            ? missingHistoricalOccupancy
+                ? null
+                : shelters.reduce((total, shelter) => (
+                    total + Number(occupancyByShelter.get(String(shelter._id))?.occupancyCount || 0)
+                ), 0)
+            : missingCurrentOccupancy
+                ? null
+                : sum(shelters, 'currentOccupancy')
+        const capacityTotal = missingShelterCapacity ? null : sum(shelters, 'capacity')
         const contributionAmount = sum(contributions.filter((record) => (record.currency || 'LKR') === 'LKR'), 'amount')
         const contributionTotalsByCurrency = aggregateBy(
             contributions,
@@ -253,6 +323,7 @@ export const generateAnalytics = async (req, res, next) => {
             status,
             distributions.filter((distribution) => distribution.auditStatus === status).length
         ]))
+        // build chart series
         const alertReachTrend = new Map()
         for (const warning of warnings) {
             const alertDate = warning.issuedAt || warning.createdAt
@@ -273,17 +344,107 @@ export const generateAnalytics = async (req, res, next) => {
             shelterOccupancyTrend.set(snapshot.date, (shelterOccupancyTrend.get(snapshot.date) || 0) + snapshot.occupancy)
         }
 
+        // document metrics that cannot be calculated
+        const missingMetrics = [
+            {
+                metric: 'Planned-versus-actual response targets',
+                reason: 'The system has no event-scoped response target records. Alert creation-to-issue elapsed time is shown where available, but cannot be compared with a target.'
+            },
+            {
+                metric: 'Required resources and unmet resource quantities',
+                reason: 'The existing inventory target is global/defaulted and is not linked to an event or affected area, so it cannot establish a valid shortage target.'
+            }
+        ]
+        if (hasShelterDateFilter) {
+            missingMetrics.push({
+                metric: 'Historical shelter capacity',
+                reason: 'Shelter capacity history is not recorded; capacity values use the current shelter record.'
+            })
+        }
+        if (missingHistoricalOccupancy || missingCurrentOccupancy) {
+            missingMetrics.push({
+                metric: hasShelterDateFilter ? 'Historical shelter occupancy' : 'Shelter occupancy',
+                reason: hasShelterDateFilter
+                    ? 'At least one matching shelter has no valid occupancy snapshot in the selected date range, so the aggregate occupancy comparison is unavailable.'
+                    : 'At least one matching shelter has no valid current occupancy value, so the aggregate occupancy comparison is unavailable.'
+            })
+        }
+        if (missingShelterCapacity) {
+            missingMetrics.push({
+                metric: 'Shelter capacity',
+                reason: 'At least one matching shelter has no valid capacity value, so the aggregate capacity comparison is unavailable.'
+            })
+        }
+        const missingSources = [
+            {
+                source: 'Donation-to-distribution lineage',
+                reason: 'Donation records are not linked to organization contributions, relief inventory, distributions, affected areas, or outcomes. No donor traceability is inferred.'
+            }
+        ]
+        if (eventMatch) {
+            missingSources.push({
+                source: 'Verified citizen reports for the selected event',
+                reason: 'Verified hazard reports have no disaster-event relationship and are omitted when a single event is selected.'
+            })
+        }
+        // build per-shelter rows with utilization and status
+        const shelterRows = shelters.map((shelter) => {
+            const occupancyRecord = hasShelterDateFilter
+                ? occupancyByShelter.get(String(shelter._id))
+                : null
+            const occupancyValue = hasShelterDateFilter
+                ? occupancyRecord?.occupancyCount ?? null
+                : shelter.currentOccupancy
+            const capacity = Number(shelter.capacity)
+            const occupancyKnown = hasValidOccupancy(occupancyValue)
+            const capacityKnown = hasValidCapacity(shelter.capacity)
+            return {
+                shelterId: shelter.shelterId,
+                shelterName: shelter.shelterName,
+                district: shelter.district,
+                event: shelter.disasterEvent,
+                capacity: shelter.capacity,
+                occupancy: occupancyValue,
+                available: !occupancyKnown || !capacityKnown ? null : Math.max(0, capacity - Number(occupancyValue)),
+                overCapacity: !occupancyKnown || !capacityKnown ? null : Math.max(0, Number(occupancyValue) - capacity),
+                utilization: !occupancyKnown || !capacityKnown || capacity <= 0
+                    ? null
+                    : Number((Number(occupancyValue) / capacity * 100).toFixed(1)),
+                capacityStatus: !occupancyKnown
+                    ? 'Occupancy unavailable'
+                    : !capacityKnown
+                        ? 'Capacity unavailable'
+                    : occupancyValue > capacity
+                        ? 'Over capacity'
+                        : capacity <= 0
+                            ? 'Capacity unavailable'
+                            : occupancyValue === capacity
+                                ? 'At capacity'
+                                : 'Below capacity',
+                status: shelter.status
+            }
+        })
+        // assemble final response
         const data = {
             generatedAt: new Date().toISOString(),
             generatedBy: req.user.name || req.user.email,
             filters,
+            dataQuality: {
+                status: 'partial',
+                missingMetrics,
+                missingSources,
+                disclaimer: 'Comparisons and lineage are limited to records with explicit database relationships. No missing targets, allocations, or donor links have been inferred.'
+            },
             summary: {
                 totalAlerts: warnings.length,
                 citizenReach: reachedUsers.size,
                 reachRate: deliveries.length ? Number((reachedDeliveries / deliveries.length * 100).toFixed(1)) : 0,
                 shelterCapacity: capacityTotal,
                 shelterOccupancy: occupancyTotal,
-                shelterUtilization: capacityTotal ? Number((occupancyTotal / capacityTotal * 100).toFixed(1)) : 0,
+                shelterUtilization: capacityTotal && occupancyTotal !== null
+                    ? Number((occupancyTotal / capacityTotal * 100).toFixed(1))
+                    : null,
+                overcrowdedShelters: shelterRows.filter((shelter) => shelter.capacityStatus === 'Over capacity').length,
                 suppliesReceived: totalReceived,
                 suppliesDistributed: sum(distributions.filter((distribution) => distribution.auditStatus !== 'Rejected'), 'quantity'),
                 remainingInventory: totalRemaining,
@@ -320,20 +481,14 @@ export const generateAnalytics = async (req, res, next) => {
                     event: warning.title,
                     district: warning.city,
                     hazardType: warning.hazardType,
+                    severity: warning.severity,
+                    status: warning.status,
                     issuedAt: warning.issuedAt || warning.createdAt,
+                    issueElapsedMinutes: alertIssueElapsedMinutes(warning),
                     recipients: reachedByWarning.get(String(warning._id))?.recipients || 0,
                     reached: reachedByWarning.get(String(warning._id))?.reached || 0
                 })),
-                shelters: shelters.map((shelter) => ({
-                    shelterId: shelter.shelterId,
-                    shelterName: shelter.shelterName,
-                    district: shelter.district,
-                    event: shelter.disasterEvent,
-                    capacity: shelter.capacity,
-                    occupancy: shelter.currentOccupancy,
-                    available: Math.max(0, shelter.capacity - shelter.currentOccupancy),
-                    status: shelter.status
-                })),
+                shelters: shelterRows,
                 supplies: supplies.map((supply) => ({
                     supplyId: supply.supplyId,
                     supplyName: supply.supplyName,
@@ -343,6 +498,7 @@ export const generateAnalytics = async (req, res, next) => {
                     received: supply.quantityReceived,
                     distributed: distributedBySupply.get(String(supply._id)) || 0,
                     remaining: Math.max(0, supply.quantityReceived - (distributedBySupply.get(String(supply._id)) || 0)),
+                    stockShortage: Math.max(0, (distributedBySupply.get(String(supply._id)) || 0) - supply.quantityReceived),
                     unit: supply.unit
                 })),
                 distributions: distributions.map((distribution) => ({
@@ -352,6 +508,8 @@ export const generateAnalytics = async (req, res, next) => {
                     supply: distribution.supply?.supplyName || 'Unknown',
                     category: distribution.supply?.category || 'Unknown',
                     district: distribution.district || distribution.shelter?.district || '',
+                    destinationType: distribution.destinationType,
+                    affectedArea: distribution.reliefLocation?.name || '',
                     quantity: distribution.quantity,
                     date: distribution.distributionDate,
                     recipient: distribution.recipient,
@@ -386,16 +544,25 @@ export const generateAnalytics = async (req, res, next) => {
                 hazardReports: hazardReports.map((report) => ({
                     hazardType: report.hazardType,
                     status: report.status,
-                    capturedAt: report.capturedAt
+                    capturedAt: report.capturedAt,
+                    district: report.district || ''
                 }))
             }
         }
         data.summary.hazardReports = hazardReports.length
+        // save audit log
         await OperationalAuditLog.create({
             actor: req.user._id,
             action: 'analytics.generated',
             entityType: 'AnalyticsReport',
-            details: { filters, matchedRecords: Object.fromEntries(Object.entries(data.records).map(([key, rows]) => [key, rows.length])) }
+            details: {
+                filters,
+                generatedAt: data.generatedAt,
+                format: 'JSON',
+                status: 'generated',
+                dataStatus: data.dataQuality.status,
+                matchedRecords: Object.fromEntries(Object.entries(data.records).map(([key, rows]) => [key, rows.length]))
+            }
         })
         res.json({ success: true, analytics: data, hasData: Object.values(data.records).some((rows) => rows.length > 0) })
     } catch (error) {
@@ -403,6 +570,7 @@ export const generateAnalytics = async (req, res, next) => {
     }
 }
 
+// extract impact fields from a record
 const impactSummaryRow = (record) => ({
     affectedPopulation: record.affectedPopulation,
     evacuatedPopulation: record.evacuatedPopulation,
@@ -420,11 +588,20 @@ export const logReportExport = async (req, res, next) => {
     try {
         const { format, filters, generatedAt } = req.body
         if (!['PDF', 'CSV'].includes(format)) return invalid(res, 'Report format must be PDF or CSV.')
+        if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
+            return invalid(res, 'Report filters are required.')
+        }
+        if (typeof generatedAt !== 'string' || !Number.isFinite(new Date(generatedAt).getTime())) {
+            return invalid(res, 'A valid report generation timestamp is required.')
+        }
+        const normalized = normalizedFilter(filters)
+        const validation = validateFilters(normalized, res)
+        if (validation) return validation
         await OperationalAuditLog.create({
             actor: req.user._id,
             action: 'report.exported',
             entityType: 'AnalyticsReport',
-            details: { format, filters: normalizedFilter(filters), generatedAt }
+            details: { format, filters: normalized, generatedAt, status: 'generated' }
         })
         res.json({ success: true })
     } catch (error) {

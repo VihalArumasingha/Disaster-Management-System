@@ -398,6 +398,7 @@ export const getOverviewMetrics = async (req, res, next) => {
     try {
         // Get collection centers count
         const totalCollectionCenters = await CollectingCenter.countDocuments()
+        const totalAlerts = await Warning.countDocuments()
 
         // Get operations counts by status
         const operationsInProgress = await DistributionOperation.countDocuments({ status: 'ACTIVE' })
@@ -442,6 +443,7 @@ export const getOverviewMetrics = async (req, res, next) => {
             success: true,
             metrics: {
                 totalCollectionCenters,
+                totalAlerts,
                 operationsInProgress,
                 operationsCompleted,
                 operationsPending,
