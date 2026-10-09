@@ -110,6 +110,25 @@ export const getApprovedDisasters = async (req, res, next) => {
         next(error)
     }
 }
+/**
+ * GET /api/ngomanager/verified-hazard-reports
+ * Verified hazardreports ONLY (status === 'verified', not archived),
+ * each with reporter + cluster priority (risk level).
+ */
+export const getVerifiedHazardReports = async (req, res, next) => {
+    try {
+        const reports = await HazardReport.find({ status: 'verified', archived: { $ne: true } })
+            .populate('reporterId', 'name email phone')
+            .populate('clusterId', 'hazardType priorityLevel priorityScore district')
+            .populate('verification.verifiedBy', 'name email role')
+            .sort({ submittedAt: -1 })
+            .lean()
+        res.json({ success: true, count: reports.length, reports })
+    } catch (error) {
+        next(error)
+    }
+}
+
 
 export const getDisasters = async (req, res, next) => {
     try {

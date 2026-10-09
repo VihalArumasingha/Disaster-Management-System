@@ -16,7 +16,7 @@ import CollectingCenter from '../../models/CollectingCenter.js'
 import DistributionOperation from '../../models/DistributionOperation.js'
 import Volunteer from '../../models/Volunteer.js'
 import { v2 as cloudinary } from 'cloudinary'
-import { getApprovedDisasters, getDisasters, getDisasterById, createDisaster, updateDisaster, deleteDisaster, getTargetAreas, getOverviewMetrics } from '../../roles/ngoManager/controllers/ngoManagerController.js'
+import { getApprovedDisasters, getVerifiedHazardReports, getDisasters, getDisasterById, createDisaster, updateDisaster, deleteDisaster, getTargetAreas, getOverviewMetrics } from '../../roles/ngoManager/controllers/ngoManagerController.js'
 const mockRes = () => { const r = {}; r.status = vi.fn().mockReturnValue(r); r.json = vi.fn().mockReturnValue(r); return r }
 const escChain = (v) => ({ populate: vi.fn().mockReturnValue({ populate: vi.fn().mockReturnValue({ populate: vi.fn().mockReturnValue({ populate: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(v) }) }) }) }) }) })
 const warnChain = (v) => ({ populate: vi.fn().mockReturnValue({ populate: vi.fn().mockReturnValue({ populate: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(v) }) }) }) }) })
@@ -77,6 +77,26 @@ describe('assignRelief: getApprovedDisasters', () => {
     HazardEscalation.find.mockImplementation(() => { throw new Error('db') })
     const next = vi.fn()
     await getApprovedDisasters({}, mockRes(), next)
+    expect(next).toHaveBeenCalledWith(expect.any(Error))
+  })
+})
+describe('assignRelief: getVerifiedHazardReports (verified only)', () => {
+  const vChain = (v) => ({ populate: vi.fn().mockReturnValue({ populate: vi.fn().mockReturnValue({ populate: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(v) }) }) }) }) })
+  it('POSITIVE: queries verified + non-archived only', async () => {
+    HazardReport.find.mockReturnValue(vChain([{ _id: 'r1', status: 'verified' }]))
+    const res = mockRes()
+    await getVerifiedHazardReports({}, res, vi.fn())
+    expect(HazardReport.find).toHaveBeenCalledWith({ status: 'verified', archived: { $ne: true } })
+    expect(res.json.mock.calls[0][0].reports).toHaveLength(1)
+  })
+  it('POSITIVE: normalizeRole strips spaces so NGO Manager passes', async () => {
+    const { normalizeRole } = await import('../../utils/constants.js')
+    expect(normalizeRole('NGO Manager')).toBe('ngomanager')
+  })
+  it('ERROR: forwards DB failure', async () => {
+    HazardReport.find.mockImplementation(() => { throw new Error('db') })
+    const next = vi.fn()
+    await getVerifiedHazardReports({}, mockRes(), next)
     expect(next).toHaveBeenCalledWith(expect.any(Error))
   })
 })

@@ -5,6 +5,7 @@ import { USER_ROLES } from '../../../utils/constants.js'
 import disasterUpload from '../../../middleware/upload/disasterUpload.js'
 import {
     getApprovedDisasters,
+    getVerifiedHazardReports,
     getDisasters,
     getDisasterById,
     createDisaster,
@@ -24,6 +25,7 @@ router.use(authenticate, authorize(USER_ROLES.ngomanager))
 
 // Disaster management routes
 router.get('/approved-disasters', getApprovedDisasters)
+router.get('/verified-hazard-reports', getVerifiedHazardReports)
 router.get('/disasters', getDisasters)
 router.get('/disasters/:disasterId', getDisasterById)
 router.post('/disasters', disasterUpload.array('images', 4), createDisaster)
