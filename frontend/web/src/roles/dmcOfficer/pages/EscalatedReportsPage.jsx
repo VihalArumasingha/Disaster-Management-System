@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, ChevronDown, ChevronUp, Clock3, MapPin, RefreshCw, ShieldCheck, UserRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import HazardReportCard from '../components/hazard/HazardReportCard'
@@ -76,10 +76,11 @@ function EscalationCard({ record }) {
         : record.cluster
     const reports = Array.isArray(record.verifiedReportIds) ? record.verifiedReportIds : []
     const expandedReport = expandedReportIndex === null ? null : reports[expandedReportIndex]
-    const reportMapCluster = useMemo(
-        () => expandedReport ? { reportIds: [expandedReport] } : null,
-        [expandedReport]
-    )
+    const reportMapCluster = expandedReport
+        ? cluster && typeof cluster === 'object' && Array.isArray(cluster.reportIds)
+            ? cluster
+            : { center: cluster?.center, reportIds: reports.length > 0 ? reports : [expandedReport] }
+        : null
 
     return (
         <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -136,7 +137,8 @@ function EscalationCard({ record }) {
             {expandedReport && reportMapCluster && (
                 <section aria-label="Selected report overview" className="mt-4 space-y-4">
                     <div className="rounded-lg border border-slate-200 bg-white p-4">
-                        <h3 className="mb-3 text-sm font-semibold text-slate-800">Report location</h3>
+                        <h3 className="mb-1 text-sm font-semibold text-slate-800">Duty Officer cluster map</h3>
+                        <p className="mb-3 text-xs text-slate-500">Cluster center and report locations associated with this escalation.</p>
                         <HazardReviewMap cluster={reportMapCluster} height="280px" />
                     </div>
                     <HazardReportCard report={expandedReport} />
