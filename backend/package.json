@@ -12,6 +12,7 @@
     "test-dewmini": "vitest run tests/dewmini",
     "test-sasnuka": "vitest run tests/sasnuka",
     "test-sewmini": "vitest run tests/sewmini",
+    "test-sewmini:verbose": "vitest run tests/sewmini --reporter=verbose",
     "test:coverage-sonali": "vitest run tests/sonali --coverage",
     "test:coverage-dewmini": "vitest run tests/dewmini --coverage",
     "test:coverage-sasnuka": "vitest run tests/sasnuka --coverage",

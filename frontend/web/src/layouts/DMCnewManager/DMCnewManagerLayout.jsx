@@ -88,7 +88,6 @@ function NgoManagerLayout({ children }) {
                     </div>
                     <div>
                         <p className="font-bold tracking-wide">SafeZone</p>
-                        <p className="text-xs text-slate-400">NGO operations</p>
                     </div>
                 </div>
                 <button
@@ -120,7 +119,6 @@ function NgoManagerLayout({ children }) {
             {/* User footer */}
             <div className="border-t border-slate-700/70 px-2 pt-4">
                 <p className="truncate text-sm font-semibold">{user.name}</p>
-                <p className="mt-1 text-xs text-slate-400">NGO Manager</p>
                 <button
                     type="button"
                     onClick={signOut}
