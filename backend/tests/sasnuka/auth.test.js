@@ -112,6 +112,29 @@ describe('Authentication and Authorization Unit Tests', () => {
             )
         })
 
+        // POSITIVE: optional national ID, address, and district are included in the user record.
+        it('saves the supplied optional profile details', async () => {
+            User.findOne.mockResolvedValue(null)
+            bcrypt.hash.mockResolvedValue('hashed-password')
+            User.create.mockResolvedValue({ _id: USER_ID })
+
+            await registerUser({
+                name: 'Test Citizen',
+                email: 'citizen@example.test',
+                password: 'Password123',
+                phone: '0712345678',
+                nationalId: '199012345678',
+                homeAddress: '12 Main Street, Colombo',
+                district: 'Colombo'
+            })
+
+            expect(User.create).toHaveBeenCalledWith(expect.objectContaining({
+                nationalId: '199012345678',
+                homeAddress: '12 Main Street, Colombo',
+                district: 'Colombo'
+            }))
+        })
+
         // POSITIVE: registration with GPS coordinates resolves target areas.
         it('registers a citizen with a location', async () => {
             User.findOne.mockResolvedValue(null)
