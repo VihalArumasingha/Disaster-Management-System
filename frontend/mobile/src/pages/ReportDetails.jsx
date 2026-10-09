@@ -428,6 +428,51 @@ function ReportDetails() {
 
 
 
+                {Array.isArray(report.reliefDeployments) && report.reliefDeployments.length > 0 && (
+
+                    <section className="mt-4 rounded-3xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm">
+
+                        <h2 className="text-base font-bold text-slate-950">
+
+                            Relief updates
+
+                        </h2>
+
+                        <div className="mt-3 space-y-3">
+
+                            {report.reliefDeployments.map((d) => (
+
+                                <div key={d._id || d.teamName} className={`rounded-2xl border p-3 text-xs leading-5 ${d.status === 'Completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-blue-200 bg-white text-slate-700'}`}>
+
+                                    <p className="font-bold">
+
+                                        {d.status === 'Completed' ? 'Relief work completed! ' : 'Relief team assigned! '}
+
+                                        {d.team} team "{d.teamName}" - {d.status}
+
+                                    </p>
+
+                                    <p className="mt-1">
+
+                                        {d.status === 'Completed'
+
+                                            ? 'The team has finished helping with your report. Thank you - stay safe! If you still need help, please submit a new report.'
+
+                                            : `Help is on the way for your report. DMO contact: ${d.dmoContact || '-'}. Stay safe!`}
+
+                                    </p>
+
+                                </div>
+
+                            ))}
+
+                        </div>
+
+                    </section>
+
+                )}
+
+
                 <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
 
                     <h2 className="text-base font-bold text-slate-950">

@@ -1,4 +1,5 @@
 import HazardReport from '../../../models/HazardReport.js'
+import ReliefDeployment from '../../../models/ReliefDeployment.js'
 import { assignReportToCluster } from './hazardClusteringService.js'
 import getDistrictFromCoordinates from '../../../utils/districtLookup.js'
 
@@ -121,21 +122,39 @@ export const createHazardReport = async (
 export const getCitizenHazardReports = async (
     reporterId
 ) => {
-    return HazardReport.find({
+    const reports = await HazardReport.find({
         reporterId
     }).sort({
         createdAt: -1
+    }).lean()
+    const ids = reports.map((r) => r._id)
+    const deployments = await ReliefDeployment.find({ reportId: { $in: ids } })
+        .select('reportId team teamName status dmoContact createdAt updatedAt')
+        .sort({ createdAt: -1 })
+        .lean()
+    const byReport = {}
+    deployments.forEach((d) => {
+        const k = String(d.reportId)
+        if (!byReport[k]) byReport[k] = []
+        byReport[k].push(d)
     })
+    return reports.map((r) => ({ ...r, reliefDeployments: byReport[String(r._id)] || [] }))
 }
 
 export const getCitizenHazardReportById = async (
     reporterId,
     reportId
 ) => {
-    return HazardReport.findOne({
+    const report = await HazardReport.findOne({
         _id: reportId,
         reporterId
-    })
+    }).lean()
+    if (!report) return null
+    const deployments = await ReliefDeployment.find({ reportId: report._id })
+        .select('reportId team teamName status dmoContact notes special createdAt updatedAt')
+        .sort({ createdAt: -1 })
+        .lean()
+    return { ...report, reliefDeployments: deployments }
 }
 
 export const updateCitizenHazardReport = async (

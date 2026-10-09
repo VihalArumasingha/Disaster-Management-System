@@ -2290,11 +2290,11 @@ function CitizenDashboard() {
 
 
 
-                            <Link to={`/warnings/${notification.warningId}`} className="block">
+                            <Link to={notification.reportId ? `/my-reports/${notification.reportId}` : (notification.warningId ? `/warnings/${notification.warningId}` : '/my-reports')} className="block">
 
 
 
-                                <div className="flex items-center gap-3 bg-red-700 px-4 py-3.5 text-white">
+                                <div className={`flex items-center gap-3 px-4 py-3.5 text-white ${notification.kind === 'relief_completed' ? 'bg-emerald-600' : notification.kind === 'relief_assigned' ? 'bg-blue-700' : 'bg-red-700'}`}>
 
 
 
@@ -2318,7 +2318,7 @@ function CitizenDashboard() {
 
 
 
-                                            Official safety notification
+                                            {notification.kind === 'relief_completed' ? 'Relief completed' : notification.kind === 'relief_assigned' ? 'Relief team update' : 'Official safety notification'}
 
 
 
